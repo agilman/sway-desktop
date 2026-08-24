@@ -3,8 +3,8 @@
 {
   "layer": "top",
   "position": "top",
-  "height": 26,
-  "margin-top": 4,
+  "height": 32,
+  "margin-top": 2,
   "spacing": 8,
 
   "modules-left": ["sway/workspaces"],

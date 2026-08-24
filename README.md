@@ -50,8 +50,10 @@ older `sar` data backfills the window before the local log has enough history.
 ### Dunst quirks handled
 
 Some dunst/Wayland builds crop notification icons taller than ~300 px. All
-charts render at ≤ 290 px height to stay safe; the CPU chart packs the
-consumer list into the image itself (image-only notification, no body text).
+charts render at ≤ 300 px height and 560 px width (the bundled `dunstrc`
+sets `max_icon_size = 560` and `icon_position = top` to match); the CPU chart
+packs the consumer list into the image itself (image-only notification, no
+body text).
 
 ## Install
 
@@ -77,7 +79,8 @@ Optional: sysstat (historical CPU data).
 
 ```
 config.env.example      LAT/LON/TZ/CITY template (real config.env is gitignored)
-scripts/                aqi.sh, aqi-chart.py, aqi-open.sh, cpu-*, mem-*
+scripts/                aqi.sh, aqi-chart.py, aqi-open.sh, cpu-*, mem-*, weather-*, moon.sh
+bin/                    wallpaper-pick, wallpaper-info -> ~/.local/bin
 waybar/                 config (JSONC), style.css (Catppuccin Mocha), launch.sh
 sway/                   config (Alt-mod, gaps, scratchpad via kitty+tmux)
 dunst/                  dunstrc
@@ -88,9 +91,17 @@ install.sh              idempotent-ish installer with backups
 ## Notes & assumptions
 
 - Battery module assumes `BAT1`; edit waybar config if yours differs (some laptops expose `BAT0`).
-- Random wallpaper expects images in `~/Pictures/wallpaper/`.
+- Wallpaper: `wallpaper-pick` (season/date-aware weighted picker, run at sway
+  startup) expects a pool under `~/Pictures/wallpaper/` with optional
+  `spring|summer|fall|winter/` and `MMDD[-MMDD]/` date dirs. `wallpaper-info`
+  shows a clickable (i) widget with wallpaper metadata from a `.json` sidecar;
+  `Mod+i` toggles it.
 - The sway config is an opinionated i3 port: Alt as $mod, vim-ish focus keys,
   gaps 14, smart borders, Catppuccin window colors. Trim to taste.
+- The sway config assumes **SwayFX** (`/usr/local/bin/sway`) for the effects
+  block (corner radius, shadows, dim, bar layer effects, 200ms window
+  animations). On plain sway, delete the "SwayFX eye candy" section at the
+  bottom of `sway/config`.
 - Window switcher is `rofi -show window` (XWayland); app launcher is `fuzzel`.
 
 ## Screenshots

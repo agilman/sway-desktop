@@ -162,8 +162,10 @@ bindsym $mod+c exec cliphist list | fuzzel --dmenu | cliphist copy
 # Battery alerts (notifications at low/full thresholds)
 exec --no-startup-id poweralertd
 
-# Wallpaper: random from ~/Pictures/wallpaper (swaybg replaces feh)
-exec --no-startup-id swaybg -i "$(find ~/Pictures/wallpaper -maxdepth 1 -type f | shuf -n1)" -m fill
+# Wallpaper: season/date-weighted picker + info widget (wallpaper-pick / wallpaper-info)
+exec --no-startup-id /home/agilman/.local/bin/wallpaper-pick
+exec_always --no-startup-id /home/agilman/.local/bin/wallpaper-info
+bindsym $mod+i exec pkill -USR1 -f "^python3 .*wallpaper-info"  # wallpaper-info-toggle
 
 ### i3-gaps stuff (all supported natively by sway) ###
 default_border pixel 3
@@ -322,3 +324,16 @@ input type:touchpad {
 input type:keyboard {
     xkb_layout us
 }
+
+# --- SwayFX eye candy (Squill 2026-08-24) ---
+corner_radius 8
+shadows enable
+shadow_blur_radius 12
+shadow_color #00000066
+shadow_offset 0 3
+default_dim_inactive 0.1
+layer_effects "waybar" {
+    corner_radius 8;
+    shadows enable;
+}
+animation_duration_ms 200
