@@ -31,6 +31,13 @@ fi
 cp -v "$SRC"/scripts/*.sh "$SRC"/scripts/*.py "$CFG/scripts/"
 chmod +x "$CFG"/scripts/*.sh "$CFG"/scripts/*.py
 
+# 2b. Wallpaper picker + info widget -> ~/.local/bin (referenced by sway config)
+if [ -d "$SRC/bin" ]; then
+  mkdir -p "$HOME/.local/bin"
+  cp -v "$SRC"/bin/* "$HOME/.local/bin/"
+  chmod +x "$HOME/.local/bin"/wallpaper-pick "$HOME/.local/bin"/wallpaper-info
+fi
+
 # 3. Bar / compositor / notification configs (back up whatever we replace)
 backup "$HOME/.config/waybar"
 cp -rv "$SRC/waybar" "$HOME/.config/waybar"
@@ -68,5 +75,5 @@ Next steps:
   3. Enjoy. Click the AQI/CPU/MEM modules for charts and popups.
 
 Note: dunst crops notification icons taller than ~300px on some setups;
-all bundled chart scripts render at 290px or less to stay safe.
+all bundled chart scripts render at 300px or less to stay safe.
 EOF

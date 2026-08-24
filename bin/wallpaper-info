@@ -1,0 +1,823 @@
+#!/usr/bin/env python3
+"""wallpaper-info — clickable wallpaper info widget for sway.
+
+A small (i) icon on the layer-shell BOTTOM layer (above swaybg, below all
+windows). Clicking it opens a card with metadata from a JSON sidecar that
+lives next to the wallpaper file (same name, .json extension).
+
+Interactions:
+  left-click       toggle the info card
+  right-click      menu: "Change Wallpaper" (runs wallpaper-pick --next,
+                   always a new image) and "Move Icon"
+                   → move mode: icon follows the cursor across the screen,
+                     left-click drops it (position saved), Esc cancels
+  Mod+i            toggle card via sway keybind (SIGUSR1)
+  SIGUSR2          toggle the right-click menu (testing hook)
+
+Current wallpaper detection (fallback chain):
+  1. ~/.local/state/wallpaper-current (written by wallpaper-pick)
+  2. the -i argument of the running swaybg process
+
+Dependencies: python3-gi, gir1.2-gtk-3.0, gir1.2-gtklayershell-0.1
+"""
+
+import gi
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+from gi.repository import Gtk, Gdk, GLib
+
+try:
+    gi.require_version("GtkLayerShell", "0.1")
+    from gi.repository import GtkLayerShell
+except ValueError:
+    sys.exit(
+        "wallpaper-info: GtkLayerShell not available.\n"
+        "Install it with:  sudo apt install gir1.2-gtklayershell-0.1"
+    )
+
+STATE_FILE = Path.home() / ".local/state/wallpaper-current"
+POS_DIR = Path.home() / ".config/wallpaper-info"
+POS_FILE = POS_DIR / "position.json"
+CONFIG_FILE = POS_DIR / "config.json"
+# Absolute path REQUIRED: sway's boot PATH does not include ~/.local/bin.
+PICKER = str(Path.home() / ".local/bin/wallpaper-pick")
+ICON_MARGIN_DEFAULT = 12
+DEFAULT_CARD_TIMEOUT = 15
+
+CSS = b"""
+#wallinfo-iconwin, #wallinfo-cardwin, #wallinfo-menuwin, #wallinfo-movewin {
+    background-color: transparent;
+}
+#wallinfo-icon {
+    background-color: rgba(20, 20, 25, 0.45);
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    border-radius: 14px;
+    padding: 4px;
+}
+#wallinfo-icon:hover {
+    background-color: rgba(20, 20, 25, 0.7);
+    background-image: none;
+}
+#wallinfo-glyph {
+    color: #e8e8e8;
+    font-size: 16px;
+    font-weight: bold;
+}
+#wallinfo-card {
+    background: rgba(24, 24, 28, 0.94);
+    color: #e8e8e8;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 16px;
+}
+#wallinfo-title { font-weight: bold; font-size: 15px; }
+#wallinfo-dim { color: #9a9a9a; }
+#wallinfo-label { color: #9a9a9a; }
+#wallinfo-link { color: #7aa2f7; text-decoration: underline; }
+#wallinfo-close { padding: 2px 8px; }
+#wallinfo-menu {
+    background: rgba(24, 24, 28, 0.94);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 8px;
+}
+#wallinfo-menu button {
+    background-color: rgba(255, 255, 255, 0.08);
+    background-image: none;
+    border: none;
+    border-radius: 8px;
+    color: #e8e8e8;
+    padding: 8px 14px;
+}
+#wallinfo-menu button:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+"""
+
+FIELDS = [
+    ("photographer", "Photographer"),
+    ("photographer_url", None),
+    ("location", "Location"),
+    ("artist", "Artist"),
+    ("artist_url", None),
+    ("source", "Source"),
+    ("license", "License"),
+    ("notes", "Notes"),
+]
+URL_KEYS = {"photographer_url", "artist_url", "source"}
+
+DEFAULT_POS = {"anchor_right": True, "anchor_bottom": True, "mh": ICON_MARGIN_DEFAULT, "mv": ICON_MARGIN_DEFAULT}
+
+
+def drop_pos(cx, cy, sw, sh, iw, ih):
+    """Convert a desired icon CENTER position into an anchor+margin spec.
+
+    Pure function (unit-testable). Clamps so the icon stays fully on screen.
+    """
+    cx = max(iw / 2, min(cx, sw - iw / 2))
+    cy = max(ih / 2, min(cy, sh - ih / 2))
+    if cx >= sw / 2:
+        anchor_right, mh = True, int(round(sw - cx - iw / 2))
+    else:
+        anchor_right, mh = False, int(round(cx - iw / 2))
+    if cy >= sh / 2:
+        anchor_bottom, mv = True, int(round(sh - cy - ih / 2))
+    else:
+        anchor_bottom, mv = False, int(round(cy - ih / 2))
+    return {"anchor_right": anchor_right, "anchor_bottom": anchor_bottom, "mh": mh, "mv": mv}
+
+
+def current_wallpaper():
+    if STATE_FILE.is_file():
+        p = STATE_FILE.read_text().strip()
+        if p and Path(p).is_file():
+            return Path(p)
+    try:
+        out = subprocess.check_output(
+            ["pgrep", "-af", "swaybg"], text=True, stderr=subprocess.DEVNULL
+        )
+        for line in out.splitlines():
+            m = re.search(r"-i\s+(\S+)", line)
+            if m:
+                p = Path(os.path.expanduser(m.group(1)))
+                if p.is_file():
+                    return p
+    except Exception:
+        pass
+    return None
+
+
+def load_meta(img):
+    side = img.with_suffix(".json")
+    if side.is_file():
+        try:
+            data = json.loads(side.read_text())
+            if isinstance(data, dict):
+                return data
+            return {"_error": "sidecar must contain a JSON object"}
+        except Exception as e:
+            return {"_error": f"sidecar parse error: {e}"}
+    return None
+
+
+def _rgba_window(win, name):
+    """Make a layer-shell window capable of a transparent background."""
+    win.set_name(name)
+    visual = win.get_screen().get_rgba_visual()
+    if visual:
+        win.set_visual(visual)
+    win.set_app_paintable(True)
+
+
+class Widget:
+    def __init__(self):
+        self.popup = None
+        self.menu = None
+        self.move_win = None
+        self.moving = False
+        self._move_start_pos = None
+        self._poll_id = None
+        self._card_timer_id = None
+        self._card_remaining = 0
+        self._card_hover = False
+        self._config, self.pos, self.card_timeout, migrated = self._load_config()
+        if migrated:
+            # one-time: persist into config.json, drop legacy position.json
+            self._save_pos()
+            try:
+                POS_FILE.unlink()
+            except Exception:
+                pass
+
+        self.icon_win = self._make_icon_window()
+        self._apply_icon_position()
+        self.icon_win.show_all()
+
+        self._sway_sock = None
+        self._sway_buf = bytearray()
+        self._sway_pending = None
+        self._sway_retry_id = None
+        self.start_sway_watch()
+
+        import signal as _signal
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, _signal.SIGUSR1, self._sig_toggle_card)
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, _signal.SIGUSR2, self._sig_toggle_menu)
+
+    def _sig_toggle_card(self):
+        self.toggle_card()
+        return True
+
+    def _sig_toggle_menu(self):
+        self.toggle_menu()
+        return True
+
+    # ---- position persistence ---------------------------------------
+    def _load_config(self):
+        """Load ~/.config/wallpaper-info/config.json.
+
+        Position lives under a "position" sub-dict so it can't collide with
+        other settings. Legacy position.json is merged once on first run.
+        Returns (config_dict, pos, card_timeout, migrated_from_legacy).
+        """
+        try:
+            cfg = json.loads(CONFIG_FILE.read_text())
+            if not isinstance(cfg, dict):
+                cfg = {}
+        except Exception:
+            cfg = {}
+        migrated = False
+        pos = cfg.get("position")
+        if not isinstance(pos, dict) and POS_FILE.is_file():
+            # one-time migration from the legacy position.json
+            try:
+                legacy = json.loads(POS_FILE.read_text())
+                if isinstance(legacy, dict):
+                    pos = legacy
+                    migrated = True
+            except Exception:
+                pass
+        if not isinstance(pos, dict):
+            pos = {}
+        clean_pos = {}
+        for key in ("anchor_right", "anchor_bottom"):
+            if isinstance(pos.get(key), bool):
+                clean_pos[key] = pos[key]
+        for key in ("mh", "mv"):
+            value = pos.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                try:
+                    if value == value and abs(value) != float("inf"):
+                        clean_pos[key] = value
+                except Exception:
+                    pass
+        pos = {**DEFAULT_POS, **clean_pos}
+        try:
+            timeout = max(0.0, float(cfg.get("card_timeout", DEFAULT_CARD_TIMEOUT)))
+        except Exception:
+            timeout = float(DEFAULT_CARD_TIMEOUT)
+        return cfg, pos, timeout, migrated
+
+    def _start_card_timer(self):
+        self._stop_card_timer()
+        if self.card_timeout <= 0:
+            return
+        self._card_remaining = self.card_timeout
+        self._card_timer_id = GLib.timeout_add(1000, self._card_timer_tick)
+
+    def _card_timer_tick(self):
+        if self._card_hover:
+            return True  # pause while pointer is over the card
+        self._card_remaining -= 1
+        if self._card_remaining <= 0:
+            self._card_timer_id = None
+            if self.popup:
+                self.popup.destroy()
+                self.popup = None
+            return False
+        return True
+
+    def _stop_card_timer(self):
+        if self._card_timer_id is not None:
+            GLib.source_remove(self._card_timer_id)
+            self._card_timer_id = None
+
+    def _set_card_hover(self, inside):
+        self._card_hover = inside
+
+    def _save_pos(self):
+        """Persist position into config.json without clobbering other keys."""
+        try:
+            try:
+                cfg = json.loads(CONFIG_FILE.read_text())
+                if not isinstance(cfg, dict):
+                    cfg = {}
+            except Exception:
+                cfg = {}
+            cfg["position"] = self.pos
+            POS_DIR.mkdir(parents=True, exist_ok=True)
+            fd, tmp_name = tempfile.mkstemp(
+                dir=POS_DIR, prefix=".config.json.", text=True
+            )
+            try:
+                with os.fdopen(fd, "w") as tmp:
+                    tmp.write(json.dumps(cfg, indent=2) + "\n")
+                os.replace(tmp_name, CONFIG_FILE)
+            except Exception:
+                try:
+                    os.unlink(tmp_name)
+                except OSError:
+                    pass
+                raise
+        except Exception:
+            pass
+
+    def _screen_wh(self):
+        s = Gdk.Screen.get_default()
+        return s.get_width(), s.get_height()
+
+    def _icon_size(self):
+        iw = self.icon_btn.get_allocated_width() or 36
+        ih = self.icon_btn.get_allocated_height() or 32
+        return iw, ih
+
+    def _apply_icon_position(self):
+        w = self.icon_win
+        p = self.pos
+        GtkLayerShell.set_anchor(w, GtkLayerShell.Edge.RIGHT, p["anchor_right"])
+        GtkLayerShell.set_anchor(w, GtkLayerShell.Edge.LEFT, not p["anchor_right"])
+        GtkLayerShell.set_anchor(w, GtkLayerShell.Edge.BOTTOM, p["anchor_bottom"])
+        GtkLayerShell.set_anchor(w, GtkLayerShell.Edge.TOP, not p["anchor_bottom"])
+        h_edge = GtkLayerShell.Edge.RIGHT if p["anchor_right"] else GtkLayerShell.Edge.LEFT
+        v_edge = GtkLayerShell.Edge.BOTTOM if p["anchor_bottom"] else GtkLayerShell.Edge.TOP
+        GtkLayerShell.set_margin(w, h_edge, int(max(0, p["mh"])))
+        GtkLayerShell.set_margin(w, v_edge, int(max(0, p["mv"])))
+
+    def _clamp_margins(self):
+        sw, sh = self._screen_wh()
+        iw, ih = self._icon_size()
+        self.pos["mh"] = max(0, min(self.pos["mh"], sw - iw))
+        self.pos["mv"] = max(0, min(self.pos["mv"], sh - ih))
+
+    # ---- icon window -------------------------------------------------
+    def _make_icon_window(self):
+        win = Gtk.Window()
+        _rgba_window(win, "wallinfo-iconwin")
+        GtkLayerShell.init_for_window(win)
+        GtkLayerShell.set_layer(win, GtkLayerShell.Layer.BOTTOM)
+        GtkLayerShell.set_exclusive_zone(win, -1)
+
+        btn = Gtk.Button()
+        btn.set_relief(Gtk.ReliefStyle.NONE)
+        btn.set_name("wallinfo-icon")
+        btn.set_tooltip_text("Wallpaper info")
+        lbl = Gtk.Label(label="ⓘ")
+        lbl.set_name("wallinfo-glyph")
+        btn.add(lbl)
+        btn.connect("button-press-event", self._on_icon_press)
+        btn.connect("clicked", lambda *_: self.toggle_card())
+        win.add(btn)
+        self.icon_btn = btn
+        return win
+
+    def _on_icon_press(self, _btn, ev):
+        if ev.button == 3:
+            self.toggle_menu()
+            return True
+        return False
+
+    # ---- right-click menu ----------------------------------------------
+    def toggle_menu(self):
+        if self.menu:
+            self.menu.destroy()
+            self.menu = None
+            return
+        self.show_menu()
+
+    def show_menu(self):
+        win = Gtk.Window()
+        _rgba_window(win, "wallinfo-menuwin")
+        GtkLayerShell.init_for_window(win)
+        GtkLayerShell.set_layer(win, GtkLayerShell.Layer.TOP)
+        GtkLayerShell.set_exclusive_zone(win, -1)
+        GtkLayerShell.set_keyboard_mode(win, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+        p = self.pos
+        iw, ih = self._icon_size()
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.RIGHT, p["anchor_right"])
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.LEFT, not p["anchor_right"])
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.BOTTOM, p["anchor_bottom"])
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.TOP, not p["anchor_bottom"])
+        h_edge = GtkLayerShell.Edge.RIGHT if p["anchor_right"] else GtkLayerShell.Edge.LEFT
+        v_edge = GtkLayerShell.Edge.BOTTOM if p["anchor_bottom"] else GtkLayerShell.Edge.TOP
+        GtkLayerShell.set_margin(win, h_edge, int(p["mh"]))
+        GtkLayerShell.set_margin(win, v_edge, int(p["mv"]) + ih + 8)
+        win.connect("key-press-event", self._on_menu_key)
+        win.connect("destroy", self._on_menu_destroyed)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.set_name("wallinfo-menu")
+        b = Gtk.Button.new_with_label("Change Wallpaper")
+        b.connect("clicked", self._on_change_wallpaper_clicked)
+        box.pack_start(b, False, False, 0)
+        b = Gtk.Button.new_with_label("Move Icon")
+        b.connect("clicked", self._on_move_icon_clicked)
+        box.pack_start(b, False, False, 0)
+
+        win.add(box)
+        win.show_all()
+        self.menu = win
+
+    def _on_menu_key(self, win, ev):
+        if Gdk.keyval_name(ev.keyval) == "Escape":
+            win.destroy()
+            return True
+        return False
+
+    def _on_menu_destroyed(self, _win):
+        self.menu = None
+
+    def _on_change_wallpaper_clicked(self, _btn):
+        if self.menu:
+            self.menu.destroy()
+            self.menu = None
+        # close the info card too — its metadata is about the old wallpaper
+        if self.popup:
+            self.popup.destroy()
+            self.popup = None
+        try:
+            subprocess.Popen(
+                [PICKER, "--next"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except Exception:
+            pass
+
+    def _on_move_icon_clicked(self, _btn):
+        if self.menu:
+            self.menu.destroy()
+            self.menu = None
+        self.start_move()
+
+    # ---- move mode ----------------------------------------------------
+    def start_move(self):
+        """Icon follows the cursor; left-click drops, Esc cancels."""
+        if self.moving:
+            return
+        self.moving = True
+        self._move_start_pos = dict(self.pos)
+        if self.popup:
+            self.popup.destroy()
+            self.popup = None
+
+        # raise the icon above windows while moving
+        self.icon_win.hide()
+        GtkLayerShell.set_layer(self.icon_win, GtkLayerShell.Layer.TOP)
+        self.icon_win.show_all()
+
+        # full-screen transparent surface on top: catches the left-click that
+        # drops the icon (and Esc). Motion is tracked by polling, which works
+        # even where motion events are unreliable on a transparent surface.
+        self.move_win = self._make_move_window()
+        self.move_win.show_all()
+        self._start_poll()
+
+    def _make_move_window(self):
+        win = Gtk.Window()
+        _rgba_window(win, "wallinfo-movewin")
+        GtkLayerShell.init_for_window(win)
+        GtkLayerShell.set_layer(win, GtkLayerShell.Layer.TOP)
+        for e in (GtkLayerShell.Edge.LEFT, GtkLayerShell.Edge.RIGHT,
+                  GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM):
+            GtkLayerShell.set_anchor(win, e, True)
+            GtkLayerShell.set_margin(win, e, 0)
+        GtkLayerShell.set_exclusive_zone(win, -1)
+        GtkLayerShell.set_keyboard_mode(win, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+        win.set_events(win.get_events() | Gdk.EventMask.BUTTON_PRESS_MASK)
+        win.connect("button-press-event", self._on_move_press)
+        win.connect("key-press-event", self._on_move_key)
+        win.add(Gtk.Fixed())  # filler so the whole surface has an input region
+        return win
+
+    def _start_poll(self):
+        if self._poll_id is None:
+            self._poll_id = GLib.timeout_add(25, self._poll_pointer)
+
+    def _stop_poll(self):
+        if self._poll_id is not None:
+            GLib.source_remove(self._poll_id)
+            self._poll_id = None
+
+    def _pointer_xy(self):
+        try:
+            display = Gdk.Display.get_default()
+            pointer = display.get_default_seat().get_pointer()
+            _screen, x, y = pointer.get_position()
+            return x, y
+        except Exception:
+            return None
+
+    def _poll_pointer(self):
+        if not self.moving:
+            self._poll_id = None
+            return False
+        xy = self._pointer_xy()
+        if xy is not None:
+            sw, sh = self._screen_wh()
+            iw, ih = self._icon_size()
+            self.pos = drop_pos(xy[0], xy[1], sw, sh, iw, ih)
+            self._apply_icon_position()
+        return True
+
+    def _on_move_press(self, _win, ev):
+        if ev.button == 1:
+            self.end_move(save=True)
+            return True
+        if ev.button == 3:
+            self.end_move(save=False)
+            return True
+        return False
+
+    def _on_move_key(self, _win, ev):
+        name = Gdk.keyval_name(ev.keyval)
+        if name == "Escape":
+            self.end_move(save=False)
+            return True
+        if name in ("Return", "KP_Enter"):
+            self.end_move(save=True)
+            return True
+        return False
+
+    def end_move(self, save):
+        if not self.moving:
+            return
+        self.moving = False
+        self._stop_poll()
+        if self.move_win:
+            self.move_win.destroy()
+            self.move_win = None
+        if not save:
+            self.pos = dict(self._move_start_pos)
+        self._clamp_margins()
+        self._apply_icon_position()
+        if save:
+            self._save_pos()
+        # return the icon to the bottom layer, re-added cleanly
+        self.icon_win.hide()
+        GtkLayerShell.set_layer(self.icon_win, GtkLayerShell.Layer.BOTTOM)
+        self.icon_win.show_all()
+
+    # ---- info card ----------------------------------------------------
+    def toggle_card(self):
+        if self.popup:
+            self.popup.destroy()
+            self.popup = None
+            return
+        self.show_popup()
+
+    def show_popup(self):
+        self._stop_card_timer()
+        win = Gtk.Window()
+        _rgba_window(win, "wallinfo-cardwin")
+        GtkLayerShell.init_for_window(win)
+        GtkLayerShell.set_layer(win, GtkLayerShell.Layer.TOP)
+        GtkLayerShell.set_exclusive_zone(win, -1)
+        p = self.pos
+        _w, ih = self._icon_size()
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.RIGHT, p["anchor_right"])
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.LEFT, not p["anchor_right"])
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.BOTTOM, p["anchor_bottom"])
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.TOP, not p["anchor_bottom"])
+        h_edge = GtkLayerShell.Edge.RIGHT if p["anchor_right"] else GtkLayerShell.Edge.LEFT
+        v_edge = GtkLayerShell.Edge.BOTTOM if p["anchor_bottom"] else GtkLayerShell.Edge.TOP
+        GtkLayerShell.set_margin(win, h_edge, int(p["mh"]))
+        GtkLayerShell.set_margin(win, v_edge, int(p["mv"]) + ih + 8)
+        win.connect("destroy", self._on_popup_destroyed)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.set_name("wallinfo-card")
+        box.set_size_request(340, -1)
+
+        img = current_wallpaper()
+        if img is None:
+            box.pack_start(Gtk.Label(label="No wallpaper detected"), False, False, 0)
+            win.add(box)
+            win.show_all()
+            self.popup = win
+            self._start_card_timer()
+            return
+
+        raw_meta = load_meta(img) or {}
+        meta = {}
+        for key, value in raw_meta.items():
+            try:
+                meta[key] = str(value)
+            except Exception:
+                pass
+
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        title = Gtk.Label()
+        title.set_name("wallinfo-title")
+        title.set_text(meta.get("title") or img.stem.replace("-", " ").replace("_", " ").title())
+        title.set_halign(Gtk.Align.START)
+        header.pack_start(title, True, True, 0)
+        close = Gtk.Button.new_with_label("\u2715")
+        close.set_name("wallinfo-close")
+        close.set_relief(Gtk.ReliefStyle.NONE)
+        close.connect("clicked", lambda *_: win.destroy())
+        header.pack_end(close, False, False, 0)
+        box.pack_start(header, False, False, 0)
+
+        fname = Gtk.Label()
+        fname.set_name("wallinfo-dim")
+        fname.set_text(str(img))
+        fname.set_halign(Gtk.Align.START)
+        fname.set_line_wrap(True)
+        box.pack_start(fname, False, False, 0)
+
+        if meta.get("_error"):
+            err = Gtk.Label(label=meta["_error"])
+            err.set_halign(Gtk.Align.START)
+            box.pack_start(err, False, False, 0)
+
+        if not meta or meta.get("_error"):
+            hint = Gtk.Label()
+            hint.set_name("wallinfo-dim")
+            hint.set_text("No metadata — create a sidecar: " + str(img.with_suffix(".json")))
+            hint.set_halign(Gtk.Align.START)
+            hint.set_line_wrap(True)
+            box.pack_start(hint, False, False, 4)
+        else:
+            for key, label in FIELDS:
+                val = meta.get(key)
+                if not val:
+                    continue
+                row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+                if label:
+                    lab = Gtk.Label()
+                    lab.set_name("wallinfo-label")
+                    lab.set_text(label + ":")
+                    lab.set_halign(Gtk.Align.START)
+                    row.pack_start(lab, False, False, 0)
+                if key in URL_KEYS:
+                    link = Gtk.LinkButton.new_with_label(val, val)
+                    link.set_name("wallinfo-link")
+                    link.set_halign(Gtk.Align.START)
+                    row.pack_start(link, False, False, 0)
+                else:
+                    txt = Gtk.Label(label=val)
+                    txt.set_halign(Gtk.Align.START)
+                    txt.set_line_wrap(True)
+                    row.pack_start(txt, False, False, 0)
+                box.pack_start(row, False, False, 0)
+
+        win.add(box)
+        win.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK)
+        win.connect("enter-notify-event", lambda *_: self._set_card_hover(True))
+        win.connect("leave-notify-event", lambda *_: self._set_card_hover(False))
+        win.show_all()
+        self.popup = win
+        self._start_card_timer()
+
+    def _on_popup_destroyed(self, _win):
+        self._stop_card_timer()
+        self._card_hover = False
+        self.popup = None
+
+    # ---- sway workspace watcher --------------------------------------
+    # layer-shell surfaces are pinned to the OUTPUT, so sway shows the card
+    # on every workspace. Watch sway IPC: when the user switches workspace,
+    # close card/menu/move-mode so they only exist on the desktop where they
+    # were opened.
+    def _find_sway_socket(self):
+        sock = os.environ.get("SWAYSOCK")
+        if sock and os.path.exists(sock):
+            return sock
+        # sway does not pass SWAYSOCK to exec'd processes; find it in
+        # XDG_RUNTIME_DIR (socket is named sway-ipc.<uid>.<pid>.sock)
+        rd = os.environ.get("XDG_RUNTIME_DIR", "")
+        if rd:
+            import glob
+            cands = sorted(glob.glob(os.path.join(rd, "sway-ipc*.sock")))
+            if cands:
+                return cands[0]
+        try:
+            out = subprocess.check_output(
+                ["sway", "--get-socketpath"], text=True, stderr=subprocess.DEVNULL
+            ).strip()
+            if out and os.path.exists(out):
+                return out
+        except Exception:
+            pass
+        return None
+
+    def start_sway_watch(self):
+        if self._sway_sock is not None:
+            return
+        sock = self._find_sway_socket()
+        if not sock:
+            self._schedule_sway_retry()
+            return
+        try:
+            import socket as _socket
+            self._sway_sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            self._sway_sock.connect(sock)
+            self._sway_sock.setblocking(False)
+            self._sway_buf.clear()
+            self._sway_pending = None
+            self._sway_sock.sendall(self._sway_msg(4, b""))       # GET_VERSION
+            self._sway_sock.sendall(self._sway_msg(2, b'["workspace"]'))  # subscribe
+            GLib.io_add_watch(
+                GLib.IOChannel.unix_new(self._sway_sock.fileno()),
+                GLib.PRIORITY_DEFAULT,
+                GLib.IOCondition.IN | GLib.IOCondition.HUP | GLib.IOCondition.ERR,
+                self._on_sway_event
+            )
+        except Exception:
+            if self._sway_sock:
+                self._sway_sock.close()
+            self._sway_sock = None
+            self._schedule_sway_retry()
+
+    def _schedule_sway_retry(self):
+        if self._sway_retry_id is None:
+            self._sway_retry_id = GLib.timeout_add_seconds(60, self._retry_sway_watch)
+
+    def _retry_sway_watch(self):
+        self._sway_retry_id = None
+        self.start_sway_watch()
+        return self._sway_sock is None
+
+    @staticmethod
+    def _sway_msg(msg_type, payload):
+        return b"i3-ipc" + len(payload).to_bytes(4, "little") + msg_type.to_bytes(4, "little") + payload
+
+    def _on_sway_event(self, _channel, _cond):
+        try:
+            while True:
+                if self._sway_pending is None:
+                    hdr = self._recv_exact(self._sway_sock, 14)
+                    if hdr is None:
+                        return True
+                    payload_len = int.from_bytes(hdr[6:10], "little")
+                    if payload_len > 1024 * 1024:
+                        raise ValueError("sway IPC payload too large")
+                    self._sway_pending = (
+                        int.from_bytes(hdr[10:14], "little"), payload_len
+                    )
+                msg_type, payload_len = self._sway_pending
+                if self._recv_exact(self._sway_sock, payload_len) is None:
+                    return True
+                self._sway_pending = None
+                # events have the 0x80000000 bit set; we only subscribe to
+                # "workspace", so any event arriving is a workspace change
+                if msg_type & 0x80000000:
+                    if self.popup:
+                        self.popup.destroy()
+                        self.popup = None
+                    if self.menu:
+                        self.menu.destroy()
+                        self.menu = None
+                    if self.moving:
+                        self.end_move(save=False)
+        except Exception:
+            if self._sway_sock:
+                self._sway_sock.close()
+                self._sway_sock = None
+            self._sway_buf.clear()
+            self._sway_pending = None
+            self._schedule_sway_retry()
+            return False
+        return True
+
+    def _recv_exact(self, sock, n):
+        while True:
+            try:
+                chunk = sock.recv(65536)
+            except BlockingIOError:
+                break
+            if not chunk:
+                raise ConnectionError("sway socket closed")
+            self._sway_buf.extend(chunk)
+        if len(self._sway_buf) < n:
+            return None
+        result = bytes(self._sway_buf[:n])
+        del self._sway_buf[:n]
+        return result
+
+
+def main():
+    # Singleton: exit if another instance already holds the lock
+    import fcntl
+    global _lock
+    lock_path = Path.home() / ".local/state/wallpaper-info.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    _lock = open(lock_path, "w")
+    try:
+        fcntl.flock(_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        sys.exit(0)
+
+    provider = Gtk.CssProvider()
+    provider.load_from_data(CSS)
+    Gtk.StyleContext.add_provider_for_screen(
+        Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+    )
+    Widget()
+    Gtk.main()
+
+
+_lock = None
+
+if __name__ == "__main__":
+    main()
