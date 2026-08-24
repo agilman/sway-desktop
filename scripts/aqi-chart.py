@@ -97,7 +97,7 @@ def render():
     aqi = [r[1] for r in rows]
     pm = [r[2] for r in rows if r[2] is not None]
 
-    fig, ax = plt.subplots(figsize=(3.6, 2.4), dpi=100)
+    fig, ax = plt.subplots(figsize=(5.6, 3.6), dpi=100)
     fig.patch.set_facecolor("#1e1e2e")
     ax.set_facecolor("#181825")
 
@@ -106,31 +106,32 @@ def render():
 
     x = list(range(len(aqi)))
     ax.fill_between(x, aqi, color="#89b4fa", alpha=0.22)
-    ax.plot(x, aqi, color="#89b4fa", lw=2)
-    ax.scatter([0], [aqi[0]], color="#cdd6f4", s=16, zorder=5)
+    ax.plot(x, aqi, color="#89b4fa", lw=2.5)
+    ax.scatter([0], [aqi[0]], color="#cdd6f4", s=24, zorder=5)
 
     step = max(1, len(times) // 6)
     ax.set_xticks(range(0, len(times), step))
     ax.set_xticklabels([times[i].strftime("%H:%M") for i in range(0, len(times), step)],
-                       color="#a6adc8", fontsize=7)
-    ax.tick_params(colors="#a6adc8", labelsize=7)
+                       color="#cdd6f4", fontsize=9, weight="bold")
+    ax.tick_params(colors="#cdd6f4", labelsize=8, width=1.5, length=5)
     for s in ax.spines.values():
-        s.set_color("#313244")
-    ax.grid(axis="y", color="#313244", lw=0.4)
+        s.set_color("#45475a")
+        s.set_linewidth(1.5)
+    ax.grid(axis="y", color="#45475a", lw=0.8)
     ax.set_ylim(0, max(60, max(aqi) * 1.25))
     ax.set_xlim(0, len(times) - 1)
 
     peak_i = aqi.index(max(aqi))
     ax.set_title(f"AQI forecast — next {len(aqi)} h  ·  model   (now {aqi[0]})",
-                 color="#cdd6f4", fontsize=9, loc="left")
+                 color="#cdd6f4", fontsize=12, weight="bold", loc="left")
     ax.annotate(f"peak {aqi[peak_i]} @ {times[peak_i].strftime('%H:%M')}",
                 xy=(peak_i, aqi[peak_i]), xytext=(4, 6),
-                textcoords="offset points", color="#f9e2af", fontsize=7)
+                textcoords="offset points", color="#f9e2af", fontsize=8)
 
     mon_aqi, mon_cat = airnow_now()
     if mon_aqi is not None:
         fig.text(0.04, 0.015, f"AirNow monitor now: {mon_aqi} ({mon_cat})",
-                 color="#a6e3a1" if mon_aqi <= 50 else "#f9e2af", fontsize=7)
+                 color="#a6e3a1" if mon_aqi <= 50 else "#f9e2af", fontsize=8)
 
     fig.tight_layout(pad=0.6, rect=(0, 0.05, 1, 1))
     fig.savefig(OUT, facecolor=fig.get_facecolor())

@@ -1,11 +1,11 @@
 [global]
-max_icon_size = 380
-icon_position = left
+max_icon_size = 560
+icon_position = top
 font = JetBrainsMono Nerd Font 11
 frame_color = "#cba6f7"
 frame_width = 2
 corner_radius = 10
-width = 420
+width = 600
 origin = top-right
 offset = 12x40
 padding = 12

@@ -4,6 +4,8 @@
 
 Note: image must stay <= ~300px tall — dunst on this setup crops taller
 icons (probed 2026-08-16: 300px ok, 340px cropped top+bottom).
+Layout 2026-08-24: 560x300; graph on top, top consumers as two columns
+below so the header clears the x-tick labels.
 """
 import datetime
 import os
@@ -104,14 +106,16 @@ def main():
 
     top = top_consumers()
 
-    fig = plt.figure(figsize=(3.6, 2.9), dpi=100)   # 360x290, under dunst's ~300px cap
+    fig = plt.figure(figsize=(5.6, 3.0), dpi=100)   # 560x300, dunst-safe
     fig.patch.set_facecolor("#1e1e2e")
-    ax = fig.add_axes([0.13, 0.44, 0.83, 0.44])
+    # content shifted down + balanced margins: dunst scales to notif width and
+    # clips the top, so keep a generous internal top margin (2026-08-24)
+    ax = fig.add_axes([0.10, 0.41, 0.80, 0.42])
     ax.set_facecolor("#181825")
 
     ax.fill_between(hours, busy, color="#94e2d5", alpha=0.22)
-    ax.plot(hours, busy, color="#94e2d5", lw=1.6)
-    ax.axhline(85, color="#f38ba8", lw=0.7, ls="--", alpha=0.6)
+    ax.plot(hours, busy, color="#94e2d5", lw=2.0)
+    ax.axhline(85, color="#f38ba8", lw=0.9, ls="--", alpha=0.7)
 
     # 10-minute ticks aligned to the wall clock
     t0 = times[0].replace(second=0, microsecond=0)
@@ -123,29 +127,32 @@ def main():
         t += datetime.timedelta(minutes=10)
     ax.set_xticks(ticks)
     ax.set_xticklabels([(times[0] + datetime.timedelta(hours=h)).strftime("%H:%M")
-                        for h in ticks], color="#a6adc8", fontsize=7)
-    ax.tick_params(colors="#a6adc8", labelsize=7)
+                        for h in ticks], color="#cdd6f4", fontsize=9, weight="bold")
+    ax.tick_params(colors="#cdd6f4", labelsize=8, width=1.5, length=5)
     for s in ax.spines.values():
-        s.set_color("#313244")
-    ax.grid(axis="y", color="#313244", lw=0.4)
+        s.set_color("#45475a")
+        s.set_linewidth(1.5)
+    ax.grid(axis="y", color="#45475a", lw=0.8)
     ax.set_ylim(0, max(100, max(busy) * 1.15))
     ax.set_xlim(0, max(hours[-1], 0.01))
 
     avg = sum(busy) / len(busy)
     peak_i = busy.index(max(busy))
     ax.set_title(f"CPU — last hour{note}  ·  avg {avg:.0f}%  now {busy[-1]:.0f}%",
-                 color="#cdd6f4", fontsize=9, loc="left")
+                 color="#cdd6f4", fontsize=12, weight="bold", loc="left")
     ax.annotate(f"peak {busy[peak_i]:.0f}%",
                 xy=(hours[peak_i], busy[peak_i]), xytext=(4, 6),
-                textcoords="offset points", color="#f9e2af", fontsize=7)
+                textcoords="offset points", color="#f9e2af", fontsize=8)
 
-    fig.text(0.05, 0.345, "Top consumers", color="#cdd6f4",
-             fontsize=8, weight="bold")
-    y = 0.275
-    for pct, name in top:
-        fig.text(0.05, y, f"{pct:5.1f}%  {name}", color="#a6adc8",
-                 fontsize=8, family="monospace")
-        y -= 0.055
+    # Top consumers in two columns (3 left, 2 right) below the x labels
+    fig.text(0.05, 0.28, "Top consumers", color="#cdd6f4",
+             fontsize=10, weight="bold")
+    col_x = [0.05, 0.50]
+    for i, (pct, name) in enumerate(top):
+        col = 0 if i < 3 else 1
+        row = i if i < 3 else i - 3
+        fig.text(col_x[col], 0.215 - row * 0.06, f"{pct:5.1f}%  {name}",
+                 color="#cdd6f4", fontsize=9, family="monospace")
 
     fig.savefig(OUT, facecolor=fig.get_facecolor())
 

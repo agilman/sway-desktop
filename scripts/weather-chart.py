@@ -7,7 +7,7 @@ Architecture (fast clicks):
              then show. Only falls back to a full fetch+render if the
              cache is stale (>3h) or missing.
 
-Base PNG has fixed geometry (360x290, ax rect [0.12, 0.16, 0.76, 0.66]),
+Base PNG has fixed geometry (560x340, ax rect [0.10, 0.18, 0.80, 0.62]),
 so the time->pixel mapping for the "now" line is exact.
 Config: ~/.config/wayland-plus/config.env (LAT/LON/TZ/CITY/UNITS).
 """
@@ -28,9 +28,9 @@ BASE_PNG = f"/tmp/wayland-plus-weather-chart-base-{USER}.png"
 OUT = f"/tmp/wayland-plus-weather-chart-{USER}.png"
 MAX_AGE = 3 * 3600  # base cache considered stale after 3 hours
 
-# plot area geometry (must match fig.add_axes below): figsize 3.6x2.9 @100dpi
-AX_X0, AX_W = 0.12 * 360, 0.76 * 360
-AX_Y0, AX_Y1 = (1 - (0.16 + 0.66)) * 290, (1 - 0.16) * 290
+# plot area geometry (must match fig.add_axes below): figsize 5.6x3.4 @100dpi
+AX_X0, AX_W = 0.10 * 560, 0.80 * 560
+AX_Y0, AX_Y1 = (1 - (0.18 + 0.62)) * 340, (1 - 0.18) * 340
 
 def load_config():
     cfg = {}
@@ -93,50 +93,62 @@ def render_base(d):
     rain = h["precipitation"]
     dy = d["daily"]
 
-    fig = plt.figure(figsize=(3.6, 2.9), dpi=100)   # 360x290, dunst-safe
+    fig = plt.figure(figsize=(5.6, 3.6), dpi=100)   # 560x360, dunst-safe
     fig.patch.set_facecolor("#1e1e2e")
-    ax = fig.add_axes([0.12, 0.16, 0.76, 0.66])
+    ax = fig.add_axes([0.10, 0.18, 0.80, 0.62])
     ax.set_facecolor("#181825")
 
     x = list(range(len(rain)))
     ax.bar(x, [r or 0 for r in rain], color="#89b4fa", alpha=0.85, width=0.8)
-    ax.set_ylabel(RU, color="#89b4fa", fontsize=7)
+    ax.set_ylabel(RU, color="#89b4fa", fontsize=9, weight="bold")
     ax.set_ylim(0, max(1.5 if UNITS != "imperial" else 0.1,
                        max((r or 0) for r in rain) * 1.3))
-    ax.tick_params(axis="y", colors="#89b4fa", labelsize=6)
+    ax.tick_params(axis="y", colors="#89b4fa", labelsize=8, width=1.5, length=5)
 
+    # prob dashed line on its own hidden 0-100 axis (max prob is in the
+    # footer text); temperature gets a separate auto-scaled axis so the
+    # line uses the full plot height instead of hugging the top.
     ax2 = ax.twinx()
-    ax2.plot(x, [p or 0 for p in prob], color="#74c7ec", lw=1.2, ls="--")
-    ax2.plot(x, temp, color="#fab387", lw=1.6)
-    ax2.set_ylim(0, max(100, max(temp) * 1.2))
-    ax2.tick_params(axis="y", colors="#a6adc8", labelsize=6)
-    ax2.set_ylabel(f"% / {TU}", color="#a6adc8", fontsize=7)
+    ax2.plot(x, [p or 0 for p in prob], color="#74c7ec", lw=1.4, ls="--")
+    ax2.set_ylim(0, 100)
+    ax2.set_yticks([])
+    ax2.spines["right"].set_visible(False)
+
+    ax3 = ax.twinx()
+    ax3.plot(x, temp, color="#fab387", lw=2.0)
+    tmin, tmax = min(temp), max(temp)
+    pad = max(2.0, (tmax - tmin) * 0.15)
+    ax3.set_ylim(tmin - pad, tmax + pad)
+    ax3.tick_params(axis="y", colors="#fab387", labelsize=8, width=1.5, length=5)
+    ax3.set_ylabel(TU, color="#fab387", fontsize=9, weight="bold")
 
     step = max(1, len(times) // 6)
     ax.set_xticks(range(0, len(times), step))
     ax.set_xticklabels([times[i].strftime("%H:%M") for i in range(0, len(times), step)],
-                       color="#a6adc8", fontsize=7)
-    ax.tick_params(axis="x", colors="#a6adc8", labelsize=7)
-    for s in list(ax.spines.values()) + list(ax2.spines.values()):
-        s.set_color("#313244")
-    ax.grid(axis="y", color="#313244", lw=0.4)
+                       color="#cdd6f4", fontsize=9, weight="bold")
+    ax.tick_params(axis="x", colors="#cdd6f4", labelsize=8, width=1.5, length=5)
+    for s in list(ax.spines.values()) + list(ax2.spines.values()) + \
+             list(ax3.spines.values()):
+        s.set_color("#45475a")
+        s.set_linewidth(1.5)
+    ax.grid(axis="y", color="#45475a", lw=0.8)
     ax.set_xlim(-0.5, len(times) - 0.5)
 
     total = sum(r or 0 for r in rain)
     peak_i = max(range(len(rain)), key=lambda i: rain[i] or 0)
     city = f" — {CITY}" if CITY else ""
     ax.set_title(f"Rain{city} — next {len(rain)} h  ·  total {total:.2f} {RU}",
-                 color="#cdd6f4", fontsize=9, loc="left")
+                 color="#cdd6f4", fontsize=12, weight="bold", loc="left")
     if (rain[peak_i] or 0) > 0:
         ax.annotate(f"{rain[peak_i]:.2f} {RU}",
                     xy=(peak_i, rain[peak_i]), xytext=(4, 4),
-                    textcoords="offset points", color="#89b4fa", fontsize=7)
+                    textcoords="offset points", color="#89b4fa", fontsize=8)
 
-    fig.text(0.12, 0.045,
+    fig.text(0.10, 0.045,
              f"prob max {dy['precipitation_probability_max'][0]}%  ·  "
              f"{dy['temperature_2m_min'][0]:.0f}–{dy['temperature_2m_max'][0]:.0f} {TU}  ·  "
              f"bars: rain {RU} · dashed: prob % · orange: temp",
-             color="#a6adc8", fontsize=6)
+             color="#cdd6f4", fontsize=8)
 
     fig.savefig(BASE_PNG, facecolor=fig.get_facecolor())
 
@@ -168,7 +180,7 @@ def show(d):
             f"Prob max {dy['precipitation_probability_max'][0]}% · "
             f"{dy['temperature_2m_min'][0]:.0f}–{dy['temperature_2m_max'][0]:.0f} {TU}")
     subprocess.run(["notify-send", "-a", "weather-chart", "-t", "20000",
-                    "-i", OUT, "Weather — next 24 h", body])
+                    "-i", OUT, " ", " "])
 
 def main():
     if "--render" in sys.argv:
