@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wayland-plus installer
+# sway-desktop installer
 # Copies configs into place, enables systemd user units.
 # Anything it replaces is backed up as <name>.bak-<timestamp>.
 set -euo pipefail
@@ -14,7 +14,7 @@ backup() {
   fi
 }
 
-echo "== wayland-plus install =="
+echo "== sway-desktop install =="
 
 # 1. Config directory + personal config.env
 CFG="$HOME/.config/wayland-plus"

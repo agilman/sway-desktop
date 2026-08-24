@@ -1,4 +1,4 @@
-# wayland-plus
+# sway-desktop
 
 A Catppuccin-Mocha Wayland desktop setup for **sway + waybar + dunst**, built
 around clickable status modules with real charts — not just numbers.
@@ -58,8 +58,8 @@ body text).
 ## Install
 
 ```bash
-git clone https://github.com/agilman/wayland-plus.git
-cd wayland-plus
+git clone https://github.com/agilman/sway-desktop.git
+cd sway-desktop
 ./install.sh
 ```
 
