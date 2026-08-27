@@ -38,8 +38,8 @@ MAX_AGE = 3 * 3600  # base cache considered stale after 3 hours
 # plot area geometry (must match fig.add_axes below): figsize 5.6x3.2 @100dpi
 # now line spans from the top of the upper axes to the bottom of the wind axes
 AX_X0, AX_W = 0.10 * 560, 0.80 * 560
-AX_Y0 = (1 - (0.47 + 0.31)) * 320   # top of upper axes (rain/prob/temp)
-AX_Y1 = (1 - 0.27) * 320            # bottom of wind axes
+AX_Y0 = (1 - (0.41 + 0.425)) * 320   # top of upper axes (rain/prob/temp)
+AX_Y1 = (1 - 0.1625) * 320           # bottom of wind axes
 
 def load_config():
     cfg = {}
@@ -115,7 +115,7 @@ def render_base(d):
 
     fig = plt.figure(figsize=(5.6, 3.2), dpi=100)   # 560x320, fits dunst window
     fig.patch.set_facecolor("#1e1e2e")
-    ax = fig.add_axes([0.10, 0.47, 0.80, 0.31])
+    ax = fig.add_axes([0.10, 0.41, 0.80, 0.425])
     ax.set_facecolor("#181825")
 
     x = list(range(len(rain)))
@@ -149,7 +149,7 @@ def render_base(d):
     ax.tick_params(axis="x", colors="#cdd6f4", labelsize=7, width=1.5, length=4)
 
     # --- wind panel (bottom): speed line + direction arrows (WU style) ---
-    axw = fig.add_axes([0.10, 0.27, 0.80, 0.14])
+    axw = fig.add_axes([0.10, 0.1625, 0.80, 0.175])
     axw.set_facecolor("#181825")
     wmax = max(v or 0 for v in ws)
     axw.plot(x, [v or 0 for v in ws], color="#89b4fa", lw=1.8)
@@ -164,7 +164,7 @@ def render_base(d):
     # angle isn't skewed by the axes' aspect ratio, then mapped back.
     fig.canvas.draw()
     inv = axw.transData.inverted()
-    L = 8.0  # arrow length, display points
+    L = 13.0  # arrow length, display points
     for i in range(0, len(ws), 2):
         if wd[i] is None:
             continue
@@ -174,8 +174,8 @@ def render_base(d):
         y1 = y0 + L * math.cos(theta)
         (px0, py0), (px1, py1) = inv.transform([(x0, y0), (x1, y1)])
         axw.add_patch(FancyArrowPatch((px0, py0), (px1, py1),
-                                      arrowstyle="-|>", mutation_scale=7,
-                                      lw=1.0, color="#a6c8ff",
+                                      arrowstyle="-|>", mutation_scale=11,
+                                      lw=1.4, color="#a6c8ff",
                                       transform=axw.transData))
 
     for s in (list(ax.spines.values()) + list(ax2.spines.values()) +
@@ -189,18 +189,18 @@ def render_base(d):
     peak_i = max(range(len(rain)), key=lambda i: rain[i] or 0)
     city = f" — {CITY}" if CITY else ""
     ax.set_title(f"Rain{city} — next {len(rain)} h  ·  total {total:.2f} {RU}",
-                 color="#cdd6f4", fontsize=11, weight="bold", loc="left")
+                 color="#cdd6f4", fontsize=9, weight="bold", loc="left", pad=3)
     if (rain[peak_i] or 0) > 0:
         ax.annotate(f"{rain[peak_i]:.2f} {RU}",
                     xy=(peak_i, rain[peak_i]), xytext=(4, 4),
                     textcoords="offset points", color="#89b4fa", fontsize=8)
 
     # footer sits at y≈275px, inside dunst's visible window (ends y≈280)
-    fig.text(0.10, 0.14,
+    fig.text(0.10, 0.056,
              f"prob max {dy['precipitation_probability_max'][0]}% · "
              f"{dy['temperature_2m_min'][0]:.0f}–{dy['temperature_2m_max'][0]:.0f} {TU} · "
              f"bars rain · dashed prob · orange temp | wind {WU_} + dir arrows",
-             color="#cdd6f4", fontsize=7)
+             color="#cdd6f4", fontsize=8, va="baseline")
 
     fig.savefig(BASE_PNG, facecolor=fig.get_facecolor())
 
