@@ -197,11 +197,11 @@ def render_base(d):
                     textcoords="offset points", color="#89b4fa", fontsize=8)
 
     # footer sits at y≈275px, inside dunst's visible window (ends y≈280)
-    fig.text(0.10, 0.045,
+    fig.text(0.10, 0.03,
              f"prob max {dy['precipitation_probability_max'][0]}% · "
              f"{dy['temperature_2m_min'][0]:.0f}–{dy['temperature_2m_max'][0]:.0f} {TU} · "
-             f"bars rain · dashed prob · orange temp | wind {WU_} + dir arrows",
-             color="#cdd6f4", fontsize=8, va="baseline")
+             f"bars rain · dashed prob · temp | wind + arrows",
+             color="#cdd6f4", fontsize=9, va="baseline")
 
     fig.savefig(BASE_PNG, facecolor=fig.get_facecolor())
 
