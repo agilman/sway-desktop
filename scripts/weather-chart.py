@@ -7,9 +7,9 @@ Architecture (fast clicks):
              then show. Only falls back to a full fetch+render if the
              cache is stale (>3h) or missing.
 
-Base PNG has fixed geometry (560x320, top ax rect [0.10, 0.47, 0.80, 0.31],
-wind ax rect [0.10, 0.27, 0.80, 0.14]), so the time->pixel mapping for the
-"now" line is exact.
+Base PNG has fixed geometry (560x320, upper ax rect [0.10, 0.41, 0.80, 0.425],
+wind ax rect [0.10, 0.15, 0.80, 0.225]), so the time->pixel mapping for the
+"now" line is exact. Time ticks live on the wind (bottom) panel.
 IMPORTANT: dunst's visible window is only ~200px (y≈80..280 of the image —
 dunst crops the TOP of the icon, not just the bottom; 2026-08-25 measurement:
 frame top y=74, bottom y=377, constant for any icon height). Title (y≈13)
@@ -39,7 +39,7 @@ MAX_AGE = 3 * 3600  # base cache considered stale after 3 hours
 # now line spans from the top of the upper axes to the bottom of the wind axes
 AX_X0, AX_W = 0.10 * 560, 0.80 * 560
 AX_Y0 = (1 - (0.41 + 0.425)) * 320   # top of upper axes (rain/prob/temp)
-AX_Y1 = (1 - 0.1625) * 320           # bottom of wind axes
+AX_Y1 = (1 - 0.15) * 320             # bottom of wind axes
 
 def load_config():
     cfg = {}
@@ -143,13 +143,11 @@ def render_base(d):
     ax3.set_ylabel(TU, color="#fab387", fontsize=8, weight="bold")
 
     step = max(1, len(times) // 6)
-    ax.set_xticks(range(0, len(times), step))
-    ax.set_xticklabels([times[i].strftime("%H:%M") for i in range(0, len(times), step)],
-                       color="#cdd6f4", fontsize=8, weight="bold")
-    ax.tick_params(axis="x", colors="#cdd6f4", labelsize=7, width=1.5, length=4)
+    # time ticks live on the wind panel below (bottom-most shared x-axis)
+    ax.set_xticks([])
 
     # --- wind panel (bottom): speed line + direction arrows (WU style) ---
-    axw = fig.add_axes([0.10, 0.1625, 0.80, 0.175])
+    axw = fig.add_axes([0.10, 0.15, 0.80, 0.225])
     axw.set_facecolor("#181825")
     wmax = max(v or 0 for v in ws)
     axw.plot(x, [v or 0 for v in ws], color="#89b4fa", lw=1.8)
@@ -158,7 +156,10 @@ def render_base(d):
     axw.tick_params(axis="y", colors="#89b4fa", labelsize=7, width=1.5, length=4)
     axw.grid(axis="y", color="#45475a", lw=0.8)
     axw.set_xlim(-0.5, len(times) - 0.5)
-    axw.set_xticks([])
+    axw.set_xticks(range(0, len(times), step))
+    axw.set_xticklabels([times[i].strftime("%H:%M") for i in range(0, len(times), step)],
+                        color="#cdd6f4", fontsize=8, weight="bold")
+    axw.tick_params(axis="x", colors="#cdd6f4", labelsize=7, width=1.5, length=4)
     # direction arrows every 2 h. Met direction is "from"; WU arrows point
     # where the wind blows TO. Computed in display space so the arrow
     # angle isn't skewed by the axes' aspect ratio, then mapped back.
@@ -196,7 +197,7 @@ def render_base(d):
                     textcoords="offset points", color="#89b4fa", fontsize=8)
 
     # footer sits at y≈275px, inside dunst's visible window (ends y≈280)
-    fig.text(0.10, 0.056,
+    fig.text(0.10, 0.045,
              f"prob max {dy['precipitation_probability_max'][0]}% · "
              f"{dy['temperature_2m_min'][0]:.0f}–{dy['temperature_2m_max'][0]:.0f} {TU} · "
              f"bars rain · dashed prob · orange temp | wind {WU_} + dir arrows",
