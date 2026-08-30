@@ -70,25 +70,13 @@ text_for_state() {
   case $state in
     charging)
       icon=󰂄
-      time_text=$(format_time "$full")
-      # upower sometimes omits its estimate even while current flows — derive our own
-      if [ -z "$time_text" ] && awk -v r="$rate" 'BEGIN{exit !(r>0.05)}'; then
-        time_text=$(estimate_time "$energy" "$efull" "$rate")
-      fi
-      if [ -n "$time_text" ]; then
-        suffix=" · ${time_text} to full"
-      fi
-      # no-info states stay off the bar text (space); tooltip carries them
+      # bar stays compact; time estimate goes to the tooltip only
       ;;
     pending-charge)
       icon=󰂄
       ;;
     discharging)
       icon=󰁹
-      time_text=$(format_time "$empty")
-      if [ -n "$time_text" ]; then
-        suffix=" · ${time_text} left"
-      fi
       ;;
     fully-charged)
       icon=󰁹
@@ -139,17 +127,30 @@ if [ -n "$display_pct" ]; then
 fi
 
 tooltip=""
-# First tooltip line: aggregate state when the bar text alone doesn't tell the story
-case $display_state in
-  charging)
-    if [ -z "$(format_time "$display_full")" ] && ! awk -v r="$display_rate" 'BEGIN{exit !(r>0.05)}'; then
-      tooltip="Aggregate: idle on AC (no charge current)"
-    fi
-    ;;
-  pending-charge)
-    tooltip="Aggregate: waiting to charge"
-    ;;
-esac
+# First tooltip line: aggregate status incl. time estimate
+time_text=""
+if [ "$display_state" = charging ]; then
+  time_text=$(format_time "$display_full")
+  if [ -z "$time_text" ] && awk -v r="$display_rate" 'BEGIN{exit !(r>0.05)}'; then
+    time_text=$(estimate_time "$display_energy" "$display_efull" "$display_rate")
+  fi
+  if [ -n "$time_text" ]; then
+    tooltip="Aggregate: charging · ${time_text} to full"
+  else
+    tooltip="Aggregate: idle on AC (no charge current)"
+  fi
+elif [ "$display_state" = pending-charge ]; then
+  tooltip="Aggregate: waiting to charge"
+elif [ "$display_state" = discharging ]; then
+  time_text=$(format_time "$display_empty")
+  if [ -n "$time_text" ]; then
+    tooltip="Aggregate: on battery · ${time_text} left"
+  else
+    tooltip="Aggregate: on battery"
+  fi
+elif [ "$display_state" = fully-charged ]; then
+  tooltip="Aggregate: fully charged"
+fi
 for battery in BAT0 BAT1; do
   line=$(tooltip_line_for_battery "$battery") || continue
   if [ -n "$tooltip" ]; then
