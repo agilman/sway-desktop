@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+
+display_device=/org/freedesktop/UPower/devices/DisplayDevice
+
+parse_device() {
+  local device=$1
+
+  upower -i "$device" 2>/dev/null | awk -F': *' '
+    {
+      sub(/^[[:space:]]+/, "", $1)
+    }
+    $1 == "percentage" { gsub(/%/, "", $2); pct = $2 }
+    $1 == "state" { state = $2 }
+    $1 == "energy-rate" { rate = $2 }
+    $1 == "time to full" { full = $2 }
+    $1 == "time to empty" { empty = $2 }
+    END { printf "%s|%s|%s|%s|%s\n", pct, state, rate, full, empty }
+  '
+}
+
+round_pct() {
+  awk -v value="$1" 'BEGIN { if (value == "") { print "" } else { printf "%d", value + 0.5 } }'
+}
+
+format_rate() {
+  awk -v value="$1" 'BEGIN { if (value == "") { printf "0.0" } else { printf "%.1f", value + 0 } }'
+}
+
+format_time() {
+  local raw=$1 value unit minutes hours mins
+
+  [ -n "$raw" ] || return 1
+
+  set -- $raw
+  value=${1:-}
+  unit=${2:-}
+
+  case $unit in
+    hour|hours)
+      minutes=$(awk -v value="$value" 'BEGIN { printf "%d", (value * 60) + 0.5 }')
+      ;;
+    minute|minutes)
+      minutes=$(awk -v value="$value" 'BEGIN { printf "%d", value + 0.5 }')
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  hours=$((minutes / 60))
+  mins=$((minutes % 60))
+  printf '%dh %02dm' "$hours" "$mins"
+}
+
+text_for_state() {
+  local pct=$1 state=$2 full=$3 empty=$4 icon suffix time_label time_text
+
+  case $state in
+    charging|pending-charge)
+      icon=󰂄
+      time_text=$(format_time "$full")
+      if [ -n "$time_text" ]; then
+        suffix=" · ${time_text} to full"
+      fi
+      ;;
+    discharging)
+      icon=󰁹
+      time_text=$(format_time "$empty")
+      if [ -n "$time_text" ]; then
+        suffix=" · ${time_text} left"
+      fi
+      ;;
+    fully-charged)
+      icon=󰁹
+      ;;
+    *)
+      icon=󰁹
+      ;;
+  esac
+
+  printf '%s %s%%%s' "$icon" "$pct" "$suffix"
+}
+
+tooltip_line_for_battery() {
+  local name=$1 device=/org/freedesktop/UPower/devices/battery_"$1"
+  local parsed pct state rate full empty
+
+  parsed=$(parse_device "$device" 2>/dev/null) || return 1
+  IFS='|' read -r pct state rate full empty <<EOF
+$parsed
+EOF
+
+  [ -n "$pct" ] || return 1
+
+  pct=$(round_pct "$pct")
+  rate=$(format_rate "$rate")
+  printf '%s %s%% %s %sW' "$name" "$pct" "$state" "$rate"
+}
+
+display_parsed=$(parse_device "$display_device" 2>/dev/null)
+IFS='|' read -r display_pct display_state display_rate display_full display_empty <<EOF
+$display_parsed
+EOF
+
+display_pct=$(round_pct "$display_pct")
+if [ -n "$display_pct" ]; then
+  display_text=$(text_for_state "$display_pct" "$display_state" "$display_full" "$display_empty")
+else
+  display_text="󰁹 --"
+fi
+
+class=""
+if [ -n "$display_pct" ]; then
+  if [ "$display_pct" -le 10 ] 2>/dev/null; then
+    class=critical
+  elif [ "$display_pct" -le 20 ] 2>/dev/null; then
+    class=warning
+  fi
+fi
+
+tooltip=""
+for battery in BAT0 BAT1; do
+  line=$(tooltip_line_for_battery "$battery") || continue
+  if [ -n "$tooltip" ]; then
+    tooltip="${tooltip}
+$line"
+  else
+    tooltip=$line
+  fi
+done
+
+if [ -n "$class" ]; then
+  jq -cn --arg text "$display_text" --arg tooltip "$tooltip" --arg class "$class" \
+    '{text: $text, tooltip: $tooltip, class: $class}'
+else
+  jq -cn --arg text "$display_text" --arg tooltip "$tooltip" \
+    '{text: $text, tooltip: $tooltip}'
+fi

@@ -9,7 +9,7 @@
 
   "modules-left": ["sway/workspaces"],
   "modules-center": ["clock"],
-  "modules-right": ["custom/weather", "custom/moon", "custom/aqi", "custom/cpu", "custom/memory", "pulseaudio", "battery", "network", "tray"],
+  "modules-right": ["custom/weather", "custom/moon", "custom/aqi", "custom/cpu", "custom/memory", "pulseaudio", "custom/battery", "network", "tray"],
 
   "sway/workspaces": {
     "disable-scroll": true,
@@ -66,13 +66,11 @@
     "on-click-right": "pavucontrol"
   },
 
-  "battery": {
-    // Some laptops expose BAT1 instead of BAT0 — adjust if battery shows nothing
-    "interval": 30,
-    "bat": "BAT1",
-    "format": "󰁹 {capacity}%",
-    "format-charging": "󰂄 {capacity}%",
-    "format-full": "󰁹 {capacity}%"
+  "custom/battery": {
+    // Dual-battery aggregate via upower DisplayDevice (BAT0+BAT1 summed)
+    "exec": "~/.config/wayland-plus/scripts/battery.sh",
+    "return-type": "json",
+    "interval": 30
   },
 
   "network": {
