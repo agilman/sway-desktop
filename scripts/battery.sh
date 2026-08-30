@@ -12,9 +12,11 @@ parse_device() {
     $1 == "percentage" { gsub(/%/, "", $2); pct = $2 }
     $1 == "state" { state = $2 }
     $1 == "energy-rate" { rate = $2 }
+    $1 == "energy" { energy = $2 }
+    $1 == "energy-full" { efull = $2 }
     $1 == "time to full" { full = $2 }
     $1 == "time to empty" { empty = $2 }
-    END { printf "%s|%s|%s|%s|%s\n", pct, state, rate, full, empty }
+    END { printf "%s|%s|%s|%s|%s|%s|%s\n", pct, state, rate, full, empty, energy, efull }
   '
 }
 
@@ -52,16 +54,36 @@ format_time() {
   printf '%dh %02dm' "$hours" "$mins"
 }
 
+estimate_time() {
+  # hours = (energy_full - energy) / rate -> h/mm
+  awk -v e="$1" -v f="$2" -v r="$3" 'BEGIN {
+    if (r <= 0 || f <= 0 || f <= e) exit
+    minutes = (f - e) / r * 60 + 0.5
+    printf "%dh %02dm", int(minutes / 60), int(minutes) % 60
+  }'
+}
+
 text_for_state() {
-  local pct=$1 state=$2 full=$3 empty=$4 icon suffix time_label time_text
+  local pct=$1 state=$2 full=$3 empty=$4 rate=$5 energy=$6 efull=$7
+  local icon suffix time_text
 
   case $state in
-    charging|pending-charge)
+    charging)
       icon=󰂄
       time_text=$(format_time "$full")
+      # upower sometimes omits its estimate even while current flows — derive our own
+      if [ -z "$time_text" ] && awk -v r="$rate" 'BEGIN{exit !(r>0.05)}'; then
+        time_text=$(estimate_time "$energy" "$efull" "$rate")
+      fi
       if [ -n "$time_text" ]; then
         suffix=" · ${time_text} to full"
+      else
+        suffix=" · idle on AC"
       fi
+      ;;
+    pending-charge)
+      icon=󰂄
+      suffix=" · waiting to charge"
       ;;
     discharging)
       icon=󰁹
@@ -98,13 +120,13 @@ EOF
 }
 
 display_parsed=$(parse_device "$display_device" 2>/dev/null)
-IFS='|' read -r display_pct display_state display_rate display_full display_empty <<EOF
+IFS='|' read -r display_pct display_state display_rate display_full display_empty display_energy display_efull <<EOF
 $display_parsed
 EOF
 
 display_pct=$(round_pct "$display_pct")
 if [ -n "$display_pct" ]; then
-  display_text=$(text_for_state "$display_pct" "$display_state" "$display_full" "$display_empty")
+  display_text=$(text_for_state "$display_pct" "$display_state" "$display_full" "$display_empty" "$display_rate" "$display_energy" "$display_efull")
 else
   display_text="󰁹 --"
 fi
