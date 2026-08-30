@@ -77,13 +77,11 @@ text_for_state() {
       fi
       if [ -n "$time_text" ]; then
         suffix=" · ${time_text} to full"
-      else
-        suffix=" · idle on AC"
       fi
+      # no-info states stay off the bar text (space); tooltip carries them
       ;;
     pending-charge)
       icon=󰂄
-      suffix=" · waiting to charge"
       ;;
     discharging)
       icon=󰁹
@@ -141,6 +139,17 @@ if [ -n "$display_pct" ]; then
 fi
 
 tooltip=""
+# First tooltip line: aggregate state when the bar text alone doesn't tell the story
+case $display_state in
+  charging)
+    if [ -z "$(format_time "$display_full")" ] && ! awk -v r="$display_rate" 'BEGIN{exit !(r>0.05)}'; then
+      tooltip="Aggregate: idle on AC (no charge current)"
+    fi
+    ;;
+  pending-charge)
+    tooltip="Aggregate: waiting to charge"
+    ;;
+esac
 for battery in BAT0 BAT1; do
   line=$(tooltip_line_for_battery "$battery") || continue
   if [ -n "$tooltip" ]; then
