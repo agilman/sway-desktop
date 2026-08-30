@@ -92,6 +92,7 @@ text_for_state() {
 tooltip_line_for_battery() {
   local name=$1 device=/org/freedesktop/UPower/devices/battery_"$1"
   local parsed pct state rate full empty
+  local sysfs=/sys/class/power_supply/$name
 
   parsed=$(parse_device "$device" 2>/dev/null) || return 1
   IFS='|' read -r pct state rate full empty <<EOF
@@ -102,7 +103,14 @@ EOF
 
   pct=$(round_pct "$pct")
   rate=$(format_rate "$rate")
-  printf '%s %s%% %s %sW' "$name" "$pct" "$state" "$rate"
+  # thresholds from sysfs (authoritative) — upower's display is stale/wrong
+  local tstart tend th
+  tstart=$(cat "$sysfs/charge_control_start_threshold" 2>/dev/null)
+  tend=$(cat "$sysfs/charge_control_end_threshold" 2>/dev/null)
+  if [ -n "$tstart" ] && [ -n "$tend" ]; then
+    th=" thresholds ${tstart}/${tend}"
+  fi
+  printf '%s %s%% %s %sW%s' "$name" "$pct" "$state" "$rate" "$th"
 }
 
 display_parsed=$(parse_device "$display_device" 2>/dev/null)
