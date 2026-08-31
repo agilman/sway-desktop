@@ -19,7 +19,8 @@
 
   "clock": {
     "interval": 30,
-    "format": "󰃭 {:%a %b %d  󰥔 %H:%M}"
+    "format": "󰃭 {:%a %b %d  󰥔 %H:%M}",
+    "tooltip-format": "<big>{:%A %B %d, %Y}</big>\n\n<tt>{calendar}</tt>"
   },
 
   "custom/weather": {
