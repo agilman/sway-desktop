@@ -9,7 +9,7 @@
 
   "modules-left": ["sway/workspaces"],
   "modules-center": ["clock"],
-  "modules-right": ["custom/weather", "custom/moon", "custom/aqi", "custom/cpu", "custom/memory", "pulseaudio", "custom/battery", "network", "tray"],
+  "modules-right": ["custom/weather", "custom/moon", "custom/aqi", "custom/cpu", "custom/memory", "pulseaudio", "battery", "network", "tray"],
 
   "sway/workspaces": {
     "disable-scroll": true,
@@ -66,11 +66,14 @@
     "on-click-right": "pavucontrol"
   },
 
-  "custom/battery": {
-    // Dual-battery aggregate via upower DisplayDevice (BAT0+BAT1 summed)
-    "exec": "~/.config/wayland-plus/scripts/battery.sh",
-    "return-type": "json",
-    "interval": 30
+  "battery": {
+    // Stock waybar battery module — auto-detects all batteries, weighted average.
+    // Experiment 2026-08-31: observe upstream behavior on dual-battery + ghost states.
+    // (Custom alternative preserved: scripts/battery.sh, commit faee776 + issue draft)
+    "interval": 30,
+    "format": "{capacity}% {icon}",
+    "format-charging": "{capacity}% 󰂄",
+    "format-full": "{capacity}% 󰁹"
   },
 
   "network": {
