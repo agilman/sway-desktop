@@ -93,6 +93,16 @@ tooltip_line_for_battery() {
   local name=$1 device=/org/freedesktop/UPower/devices/battery_"$1"
   local parsed pct state rate full empty
 
+  # Ghost battery: slot exists but pack reports 0V with no identity — not detected
+  local uevent model volt
+  uevent=$(cat "/sys/class/power_supply/$name/uevent" 2>/dev/null)
+  model=$(echo "$uevent" | sed -n 's/^POWER_SUPPLY_MODEL_NAME=//p')
+  volt=$(echo "$uevent" | sed -n 's/^POWER_SUPPLY_VOLTAGE_NOW=//p')
+  if [ -z "$model" ] && [ "${volt:-0}" = "0" ]; then
+    printf '%s not detected' "$name"
+    return 0
+  fi
+
   parsed=$(parse_device "$device" 2>/dev/null) || return 1
   IFS='|' read -r pct state rate full empty <<EOF
 $parsed
