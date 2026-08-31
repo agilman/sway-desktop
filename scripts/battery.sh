@@ -103,6 +103,16 @@ tooltip_line_for_battery() {
     return 0
   fi
 
+  # EC half-awake: pack talks (voltage/energy) but no capacity identity (blank model,
+  # missing energy_full) -> kernel can't compute %; show status without a fake 0%
+  local efull_file="/sys/class/power_supply/$name/energy_full"
+  if [ -z "$model" ] && [ ! -e "$efull_file" ]; then
+    local st
+    st=$(echo "$uevent" | sed -n 's/^POWER_SUPPLY_STATUS=//p')
+    printf '%s present · %s (capacity data unavailable)' "$name" "${st:-unknown}"
+    return 0
+  fi
+
   parsed=$(parse_device "$device" 2>/dev/null) || return 1
   IFS='|' read -r pct state rate full empty <<EOF
 $parsed
