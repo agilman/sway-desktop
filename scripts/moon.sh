@@ -36,7 +36,12 @@ fi
 
 case "$1" in
   notify)
-    notify-send -a moon -t 15000 "${names[$idx]} — ${illum}% illuminated" "Moon age: ${age} days of ${SYNODIC%.*}
+    # 16-step index for the popup artwork (finer than the 8 name buckets).
+    nphase=$(awk -v a="$age" -v s="$SYNODIC" 'BEGIN{printf "%02d", int((a/s)*16 + 0.5) % 16}')
+    icon="$HOME/.config/wayland-plus/moon-notify/phase-${nphase}.png"
+    icon_args=()
+    [ -f "$icon" ] && icon_args=(-i "$icon")
+    notify-send -a moon "${icon_args[@]}" -t 15000 "${names[$idx]} — ${illum}% illuminated" "Moon age: ${age} days of ${SYNODIC%.*}
 Next full moon: in ${next_full} days
 Next new moon: in ${next_new} days${sunline:+
 $sunline}" 2>/dev/null
