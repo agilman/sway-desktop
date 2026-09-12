@@ -5,7 +5,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
-CACHE = Path('/tmp/wayland-plus-aqi-widgettest.json')  # isolated: never touch the live cache
+TEST_USER = f"widgettest-{os.environ.get('USER','user')}"  # per-user: /tmp is shared
+CACHE = Path(f'/tmp/wayland-plus-aqi-{TEST_USER}.json')  # isolated: never the live cache
 CONFIG = Path(f"/tmp/aqi-test-config-{os.environ.get('USER','user')}")
 
 def run(aqi):
@@ -14,7 +15,7 @@ def run(aqi):
     CACHE.write_text(json.dumps({'source': 'test', 'aqi': aqi, 'category': 'x',
                                  'parameter': 'PM2.5', 'asof': 'now'}))
     out = subprocess.run(['bash', str(Path(__file__).with_name('aqi.sh')), 'waybar'],
-                         env={**os.environ, 'XDG_CONFIG_HOME': str(CONFIG), 'USER': 'widgettest'},
+                         env={**os.environ, 'XDG_CONFIG_HOME': str(CONFIG), 'USER': TEST_USER},
                          capture_output=True, text=True, check=True).stdout
     return json.loads(out)
 
