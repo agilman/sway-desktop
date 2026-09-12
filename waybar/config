@@ -20,7 +20,8 @@
   "clock": {
     "interval": 30,
     "format": "󰃭 {:%a %b %d  󰥔 %H:%M}",
-    "tooltip-format": "<big>{:%A %B %d, %Y}</big>\n\n<tt>{calendar}</tt>"
+    "tooltip-format": "<big>{:%A %B %d, %Y}</big>\n\n<tt>{calendar}</tt>",
+    "on-click": "~/.config/wayland-plus/scripts/calendar.sh"
   },
 
   "custom/weather": {
