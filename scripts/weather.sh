@@ -51,20 +51,30 @@ fi
 
 code=$(jq -r '.code' "$CACHE")
 case "$code" in
-  0)            icon=󰖑; class=clear;  desc="Clear sky" ;;
-  1|2)          icon=󰖉; class=clear;  desc="Partly cloudy" ;;
-  3)            icon=󰖍; class=cloudy; desc="Overcast" ;;
-  45|48)        icon=󰖍; class=cloudy; desc="Fog" ;;
-  51|53|55|56|57) icon=󰖐; class=rain; desc="Drizzle" ;;
-  61|63|65|66|67) icon=󰖐; class=rain; desc="Rain" ;;
-  71|73|75|77)  icon=󰬶; class=snow;  desc="Snow" ;;
-  80|81|82)     icon=󰖐; class=rain;  desc="Rain showers" ;;
-  85|86)        icon=󰬶; class=snow;  desc="Snow showers" ;;
-  95|96|99)     icon=󰽜; class=storm; desc="Thunderstorm" ;;
-  *)            icon=󰖍; class=cloudy; desc="Code $code" ;;
+  0)            class=clear;  desc="Clear sky" ;;
+  1|2)          class=partly; desc="Partly cloudy" ;;
+  3)            class=cloudy; desc="Overcast" ;;
+  45|48)        class=cloudy; desc="Fog" ;;
+  51|53|55|56|57) class=rain; desc="Drizzle" ;;
+  61|63|65|66|67) class=rain; desc="Rain" ;;
+  71|73|75|77)  class=snow;  desc="Snow" ;;
+  80|81|82)     class=rain;  desc="Rain showers" ;;
+  85|86)        class=snow;  desc="Snow showers" ;;
+  95|96|99)     class=storm; desc="Thunderstorm" ;;
+  *)            class=cloudy; desc="Code $code" ;;
 esac
 
+# Strong wind gets its own icon when it is the dominant condition (dry, light
+# classes only; precipitation keeps priority). Threshold in current units:
+# 20 mph / ~32 km/h — brisk enough to matter on a bike, below advisory levels.
 wind=$(jq -r '.wind' "$CACHE")
+case "$class" in
+  clear|partly|cloudy)
+    windy_limit=$(awk -v u="$UNITS" 'BEGIN{print u == "imperial" ? 20 : 32}')
+    windy=$(awk -v w="$wind" -v t="$windy_limit" 'BEGIN{print (w >= t) ? 1 : 0}')
+    [ "$windy" = 1 ] && class=windy && desc="Windy"
+    ;;
+esac
 prob=$(jq -r '.prob_max // 0' "$CACHE")
 rainsum=$(jq -r '.rain_sum // 0' "$CACHE")
 feels=$(jq -r '.feels' "$CACHE")
@@ -79,7 +89,9 @@ Today: ${rainsum} ${RU} expected, ${prob}% chance
 High ${tmax}${TU} / Low ${tmin}${TU}" 2>/dev/null
     ;;
   *)
-    printf '{"text": "%s %s%s", "class": "%s", "tooltip": "%s · wind %s %s · rain today %s %s (%s%%)"}\n' \
-      "$icon" "$temp" "$TU" "$class" "$desc" "$wind" "$WU" "$rainsum" "$RU" "$prob"
+    # NBSP icon slot: CSS paints the artwork; a nonempty label keeps the
+    # module (tooltip + click) alive.
+    printf '{"text": " %s%s", "class": "%s", "tooltip": "%s · wind %s %s · rain today %s %s (%s%%)"}\n' \
+      "$temp" "$TU" "$class" "$desc" "$wind" "$WU" "$rainsum" "$RU" "$prob"
     ;;
 esac

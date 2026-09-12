@@ -1,4 +1,5 @@
 @import "moon.css";
+@import "weather.css";
 
 /* Waybar style — Catppuccin Mocha, matches polybar bar/main (Clawdia 2026-08-15) */
 
@@ -48,7 +49,7 @@ window#waybar {
   padding: 0 4px;
 }
 
-/* ---- weather classes (WMO code groups, see weather.sh) ---- */
+/* Weather classes: icon artwork via weather.css; colors kept for tooltips/alerts. */
 #custom-weather.clear { color: #f9e2af; }
 #custom-weather.cloudy { color: #a6adc8; }
 #custom-weather.rain { color: #89b4fa; }

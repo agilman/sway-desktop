@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+<title>weather: cloudy</title>
+<defs>
+<radialGradient id="sun" cx="42%" cy="38%" r="65%">
+  <stop offset="0" stop-color="#f9e2af"/><stop offset=".75" stop-color="#f9e2af"/>
+  <stop offset="1" stop-color="#fab387"/></radialGradient>
+<linearGradient id="cloud" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#cdd6f4"/><stop offset="1" stop-color="#9ca3b8"/></linearGradient>
+</defs><g stroke="#45475a" stroke-width="3" stroke-linejoin="round">
+<path fill="url(#cloud)" d="M14 70 a12 12 0 0 1 4-23 a16 16 0 0 1 28-8 a18 18 0 0 1 32 4 a13 13 0 0 1 6 27 Z"/>
+</g>
+<g fill="#7080a0" opacity=".55"><ellipse cx="46" cy="68" rx="30" ry="4"/></g>
+</svg>

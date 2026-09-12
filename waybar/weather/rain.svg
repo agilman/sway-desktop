@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+<title>weather: rain</title>
+<defs>
+<radialGradient id="sun" cx="42%" cy="38%" r="65%">
+  <stop offset="0" stop-color="#f9e2af"/><stop offset=".75" stop-color="#f9e2af"/>
+  <stop offset="1" stop-color="#fab387"/></radialGradient>
+<linearGradient id="cloud" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#cdd6f4"/><stop offset="1" stop-color="#9ca3b8"/></linearGradient>
+</defs><g stroke="#45475a" stroke-width="3" stroke-linejoin="round">
+<path fill="url(#cloud)" d="M22 68 a14 14 0 0 1 6-27 a20 20 0 0 1 38-6 a15 15 0 0 1 10 33 Z"/>
+</g>
+<g fill="#7080a0" opacity=".55"><ellipse cx="44" cy="66" rx="24" ry="4"/></g><g stroke="#89b4fa" stroke-width="6" stroke-linecap="round">
+<line x1="30" y1="76" x2="26" y2="90"/><line x1="46" y1="76" x2="42" y2="90"/>
+<line x1="62" y1="76" x2="58" y2="90"/></g>
+</svg>
