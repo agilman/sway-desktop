@@ -25,7 +25,7 @@ import cairo
 
 
 N = 16
-SIZE = 165
+SIZE = 260
 
 
 def phase_svg(i):
