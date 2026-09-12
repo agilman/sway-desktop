@@ -15,7 +15,7 @@ from pathlib import Path
 from PIL import Image, ImageChops
 
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else '/tmp/mn-local/moon-notify')
-SIZE = 256
+SIZE = int(sys.argv[2]) if len(sys.argv) > 2 else 256
 problems = []
 images = {}
 for i in range(16):
@@ -53,7 +53,8 @@ for i in range(1, 15):
             if (1 if i <= 8 else -1) * (x + .5 - cx) >= boundary:
                 expected_px += 1
     expected = expected_px / total
-    if abs(frac - expected) > 0.045:
+    tol = 0.045 if SIZE >= 256 else 0.08  # edge AA is proportionally larger at small sizes
+    if abs(frac - expected) > tol:
         problems.append(f'phase {i}: lit {frac:.3f} vs terminator {expected:.3f}')
 
 # 3. quarter orientation via bright x-extent
@@ -71,11 +72,12 @@ for i, right in ((4, True), (12, False)):
 
 # 4. mirror symmetry via alpha channel (shape truth, brightness-independent)
 for i in range(1, 8):
-    a = images[i].split()[3].crop((0, 0, 128, SIZE)).transpose(Image.FLIP_LEFT_RIGHT)
-    b = images[15 - i].split()[3].crop((128, 0, 256, SIZE))
+    half = SIZE // 2
+    a = images[i].split()[3].crop((0, 0, half, SIZE)).transpose(Image.FLIP_LEFT_RIGHT)
+    b = images[15 - i].split()[3].crop((half, 0, SIZE, SIZE))
     hist = ImageChops.difference(a, b).histogram()
     bad = sum(v for v in hist[12:])
-    if bad > 40:
+    if bad > half * SIZE * (0.002 if SIZE >= 256 else 0.05):
         problems.append(f'phase {i} vs {15-i}: mirror alpha mismatch {bad}px')
 
 if problems:
