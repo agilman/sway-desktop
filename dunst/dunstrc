@@ -29,3 +29,8 @@ timeout = 8
 background = "#f38ba8"
 foreground = "#1e1e2e"
 timeout = 0
+
+# Moon popup: phase art beside the text instead of on top.
+[moon_popup]
+    appname = moon
+    icon_position = right
