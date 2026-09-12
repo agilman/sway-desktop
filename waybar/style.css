@@ -1,3 +1,5 @@
+@import "moon.css";
+
 /* Waybar style — Catppuccin Mocha, matches polybar bar/main (Clawdia 2026-08-15) */
 
 * {
@@ -54,8 +56,7 @@ window#waybar {
 #custom-weather.storm { color: #f38ba8; }
 #custom-weather.nodata { color: #585b70; }
 
-/* ---- moon ---- */
-#custom-moon { color: #cba6f7; }
+/* Moon artwork and hover styling are supplied by moon.css. */
 
 /* ---- AQI classes (EPA categories, colors from aqi.sh color_for) ---- */
 #custom-aqi.good          { color: #a6e3a1; }

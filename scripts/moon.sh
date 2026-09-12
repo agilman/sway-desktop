@@ -16,7 +16,8 @@ illum=$(awk -v a="$age" -v s="$SYNODIC" 'BEGIN{pi=3.14159265; printf "%.0f", (1-
 next_full=$(awk -v a="$age" -v s="$SYNODIC" 'BEGIN{d=s/2-a; if(d<0)d+=s; printf "%.1f", d}')
 next_new=$(awk -v a="$age" -v s="$SYNODIC" 'BEGIN{printf "%.1f", s-a}')
 
-icons=(󰽡 󰽢 󰽣 󰽤 󰽥 󰽦 󰽧 󰽨)
+# Artwork uses 120 steps for a closer phase silhouette than the 8 name buckets.
+phase=$(awk -v a="$age" -v s="$SYNODIC" 'BEGIN{printf "%03d", int((a/s)*120 + 0.5) % 120}')
 names=("New Moon" "Waxing Crescent" "First Quarter" "Waxing Gibbous" "Full Moon" "Waning Gibbous" "Last Quarter" "Waning Crescent")
 
 # --- sunrise / sunset (optional, cached 6h, needs LAT/LON) ---
@@ -41,7 +42,8 @@ Next new moon: in ${next_new} days${sunline:+
 $sunline}" 2>/dev/null
     ;;
   *)
-    printf '{"text": "%s", "tooltip": "%s — %s%% illuminated%s"}\n' \
-      "${icons[$idx]}" "${names[$idx]}" "$illum" "${sunline:+ · $sunline}"
+    # A nonempty NBSP keeps GTK's event box/tooltip alive; CSS draws the icon.
+    printf '{"text": " ", "class": "phase-%s", "tooltip": "%s — %s%% illuminated%s"}\n' \
+      "$phase" "${names[$idx]}" "$illum" "${sunline:+ · $sunline}"
     ;;
 esac
