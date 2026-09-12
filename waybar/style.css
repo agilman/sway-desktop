@@ -1,5 +1,6 @@
 @import "moon.css";
 @import "weather.css";
+@import "aqi.css";
 
 /* Waybar style — Catppuccin Mocha, matches polybar bar/main (Clawdia 2026-08-15) */
 
@@ -44,7 +45,7 @@ window#waybar {
 }
 
 /* ---- generic module spacing (polybar module-margin = 1) ---- */
-#clock, #custom-aqi, #custom-cpu, #custom-memory,
+#clock, #custom-cpu, #custom-memory,
 #pulseaudio, #battery, #network, #tray {
   padding: 0 4px;
 }

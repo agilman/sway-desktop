@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+<title>aqi: veryunhealthy</title>
+<g stroke="#1e1e2e" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
+<path fill="#cba6f7" d="M20 66 a13 13 0 0 1 7-25 a19 19 0 0 1 36-6 a14 14 0 0 1 14 31 Z"/>
+<path fill="none" stroke="#cba6f7" stroke-width="6" d="M8 78 h34 M50 78 h20 M26 90 h22"/>
+</g><circle class="p" cx="38" cy="46" r="5" fill="#1e1e2e" opacity=".85"/><circle class="p" cx="62" cy="52" r="5" fill="#1e1e2e" opacity=".85"/><circle class="p" cx="50" cy="62" r="5" fill="#1e1e2e" opacity=".85"/><circle class="p" cx="30" cy="58" r="5" fill="#1e1e2e" opacity=".85"/><circle class="p" cx="68" cy="40" r="5" fill="#1e1e2e" opacity=".85"/><circle class="p" cx="46" cy="38" r="5" fill="#1e1e2e" opacity=".85"/><circle class="p" cx="58" cy="68" r="5" fill="#1e1e2e" opacity=".85"/><circle class="p" cx="36" cy="70" r="5" fill="#1e1e2e" opacity=".85"/>
+</svg>

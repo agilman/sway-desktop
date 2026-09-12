@@ -8,7 +8,7 @@ CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/wayland-plus/config.env"
 [ -f "$CONFIG" ] && . "$CONFIG"
 if [ -z "${LAT:-}" ] || [ -z "${LON:-}" ] || [ "$LAT" = "0.0" ]; then
   echo "wayland-plus: set LAT/LON in $CONFIG" >&2
-  [ "$1" = waybar ] && echo '{"text": "󰢬 cfg", "class": "nodata"}' || echo "%{F#f38ba8}󰢬 cfg%{F-}"
+  [ "$1" = waybar ] && echo $'{"text": "\u00a0cfg", "class": "nodata"}' || echo "%{F#f38ba8}󰢬 cfg%{F-}"
   exit 1
 fi
 CITY="${CITY:-}"
@@ -65,7 +65,7 @@ if [ -z "$aqi" ]; then
   if [ "$1" = notify ]; then
     notify-send "Air Quality" "No data from AirNow or Open-Meteo right now." 2>/dev/null
   elif [ "$1" = waybar ]; then
-    echo '{"text": "󰢬 --", "class": "nodata"}'
+    echo $'{"text": "\u00a0--", "class": "nodata"}'
   else
     echo "%{F#585b70}󰢬 --%{F-}"
   fi
@@ -91,7 +91,9 @@ As of: $(jq -r '.asof // "now"' "$CACHE")
 Source: $(jq -r '.source' "$CACHE")" 2>/dev/null
     ;;
   waybar)
-    printf '{"text": "󰢬 %s", "class": "%s", "tooltip": "%s — %s | PM2.5: %s | As of: %s"}\n' \
+    # NBSP icon slot: CSS paints the artwork per class; nonempty text keeps
+    # the module (tooltip + clicks) alive.
+    printf $'{"text": "\u00a0%s", "class": "%s", "tooltip": "%s — %s | PM2.5: %s | As of: %s"}\n' \
       "$aqi" "$(class_for "$aqi")" "$(jq -r '.category' "$CACHE")" "$(jq -r '.source' "$CACHE")" \
       "$(jq -r '(.pm2_5 // "n/a") | tostring' "$CACHE")" "$(jq -r '.asof // "now"' "$CACHE")"
     ;;

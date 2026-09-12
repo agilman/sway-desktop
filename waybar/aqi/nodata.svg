@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+<title>aqi: nodata</title>
+<g stroke="#1e1e2e" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
+<path fill="#585b70" d="M20 66 a13 13 0 0 1 7-25 a19 19 0 0 1 36-6 a14 14 0 0 1 14 31 Z"/>
+<path fill="none" stroke="#585b70" stroke-width="6" d="M8 78 h34 M50 78 h20 M26 90 h22"/>
+</g><text x="50" y="60" font-family="sans-serif" font-size="30" font-weight="bold" fill="#cdd6f4" text-anchor="middle">?</text>
+</svg>

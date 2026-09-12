@@ -43,7 +43,7 @@ $sunline}" 2>/dev/null
     ;;
   *)
     # A nonempty NBSP keeps GTK's event box/tooltip alive; CSS draws the icon.
-    printf '{"text": " ", "class": "phase-%s", "tooltip": "%s — %s%% illuminated%s"}\n' \
+    printf $'{"text": "\u00a0", "class": "phase-%s", "tooltip": "%s — %s%% illuminated%s"}\n' \
       "$phase" "${names[$idx]}" "$illum" "${sunline:+ · $sunline}"
     ;;
 esac

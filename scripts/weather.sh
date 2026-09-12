@@ -6,7 +6,7 @@
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/wayland-plus/config.env"
 [ -f "$CONFIG" ] && . "$CONFIG"
 if [ -z "${LAT:-}" ] || [ -z "${LON:-}" ] || [ "$LAT" = "0.0" ]; then
-  [ "$1" = waybar ] && echo '{"text": "󰖍 cfg", "class": "nodata"}' || echo "set LAT/LON in $CONFIG" >&2
+  [ "$1" = waybar ] && echo $'{"text": "\u00a0cfg", "class": "nodata"}' || echo "set LAT/LON in $CONFIG" >&2
   exit 1
 fi
 
@@ -45,7 +45,7 @@ if (( now - mtime >= MAX_AGE )); then fetch; fi
 
 temp=$(jq -r '.temp // empty' "$CACHE" 2>/dev/null)
 if [ -z "$temp" ]; then
-  [ "$1" = waybar ] && echo '{"text": "󰖍 --", "class": "nodata"}' || echo "no weather data"
+  [ "$1" = waybar ] && echo $'{"text": "\u00a0--", "class": "nodata"}' || echo "no weather data"
   exit 0
 fi
 
@@ -91,7 +91,7 @@ High ${tmax}${TU} / Low ${tmin}${TU}" 2>/dev/null
   *)
     # NBSP icon slot: CSS paints the artwork; a nonempty label keeps the
     # module (tooltip + click) alive.
-    printf '{"text": " %s%s", "class": "%s", "tooltip": "%s · wind %s %s · rain today %s %s (%s%%)"}\n' \
+    printf $'{"text": "\u00a0%s%s", "class": "%s", "tooltip": "%s · wind %s %s · rain today %s %s (%s%%)"}\n' \
       "$temp" "$TU" "$class" "$desc" "$wind" "$WU" "$rainsum" "$RU" "$prob"
     ;;
 esac
