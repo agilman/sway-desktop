@@ -80,7 +80,7 @@
   "network": {
     // No interface pinned: waybar autodetects the active one
     "interval": 5,
-    "format-wifi": "󰖩 {essid}",
+    "format-wifi": "󰖩",
     "format-disconnected": "󰖪 offline"
   },
 
