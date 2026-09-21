@@ -46,7 +46,7 @@ window#waybar {
 
 /* ---- generic module spacing (polybar module-margin = 1) ---- */
 #clock, #custom-cpu, #custom-memory,
-#pulseaudio, #battery, #network, #tray {
+#pulseaudio, #battery, #custom-network, #tray {
   padding: 0 4px;
 }
 
