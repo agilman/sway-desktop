@@ -9,7 +9,7 @@
 
   "modules-left": ["sway/workspaces"],
   "modules-center": ["clock"],
-  "modules-right": ["custom/weather", "custom/moon", "custom/aqi", "custom/cpu", "custom/memory", "pulseaudio", "custom/battery", "custom/network", "tray"],
+  "modules-right": ["custom/weather", "custom/moon", "custom/aqi", "custom/cpu", "custom/memory", "pulseaudio", "custom/battery", "network", "tray"],
 
   "sway/workspaces": {
     "disable-scroll": true,
@@ -77,10 +77,13 @@
     "interval": 30
   },
 
-  "custom/network": {
-    "exec": "~/.config/wayland-plus/scripts/network.sh",
-    "return-type": "json",
-    "interval": 5
+  "network": {
+    // No interface pinned: waybar autodetects the active one
+    "interval": 5,
+    "format-wifi": "󰖩",
+    "format-disconnected": "󰖪 offline",
+    "tooltip-format-wifi": "{essid}\nsignal: {signalStrength}%\ngateway: {gwaddr}",
+    "tooltip-format-disconnected": "offline"
   },
 
   "tray": {
