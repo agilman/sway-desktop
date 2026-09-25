@@ -16,9 +16,10 @@ from PIL import Image, ImageChops
 
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else '/tmp/mn-local/moon-notify')
 SIZE = int(sys.argv[2]) if len(sys.argv) > 2 else 256
+NPHASES = int(sys.argv[3]) if len(sys.argv) > 3 else 16
 problems = []
 images = {}
-for i in range(16):
+for i in range(NPHASES):
     im = Image.open(SRC / f'phase-{i:02d}.png').convert('RGBA')
     images[i] = im
     if im.size != (SIZE, SIZE):
@@ -43,14 +44,14 @@ for i in range(1, 15):
             if sum(im.getpixel((x, y))[:3]) / 3 > 100:
                 light += 1
     frac = light / total
-    angle = i * 2 * math.pi / 16
+    angle = i * 2 * math.pi / NPHASES
     expected_px = 0
     for y in range(SIZE):
         dy = y + .5 - cy
         span = math.sqrt(max(0.0, r_inset**2 - dy**2))
         boundary = math.cos(angle) * span
         for x in range(int(cx - span), int(cx + span) + 1):
-            if (1 if i <= 8 else -1) * (x + .5 - cx) >= boundary:
+            if (1 if i <= NPHASES // 2 else -1) * (x + .5 - cx) >= boundary:
                 expected_px += 1
     expected = expected_px / total
     tol = 0.045 if SIZE >= 256 else 0.08  # edge AA is proportionally larger at small sizes
@@ -58,7 +59,8 @@ for i in range(1, 15):
         problems.append(f'phase {i}: lit {frac:.3f} vs terminator {expected:.3f}')
 
 # 3. quarter orientation via bright x-extent
-for i, right in ((4, True), (12, False)):
+q1, q3 = NPHASES // 4, 3 * NPHASES // 4
+for i, right in ((q1, True), (q3, False)):
     im = images[i]
     cx = cy = SIZE / 2
     r_inset = SIZE * 0.46 - 6   # exclude the rim stroke band
@@ -71,10 +73,10 @@ for i, right in ((4, True), (12, False)):
         problems.append(f'phase 12: light bleeds right to x={max(xs)}')
 
 # 4. mirror symmetry via alpha channel (shape truth, brightness-independent)
-for i in range(1, 8):
+for i in range(1, NPHASES // 2):
     half = SIZE // 2
     a = images[i].split()[3].crop((0, 0, half, SIZE)).transpose(Image.FLIP_LEFT_RIGHT)
-    b = images[15 - i].split()[3].crop((half, 0, SIZE, SIZE))
+    b = images[NPHASES - 1 - i].split()[3].crop((half, 0, SIZE, SIZE))
     hist = ImageChops.difference(a, b).histogram()
     bad = sum(v for v in hist[12:])
     if bad > half * SIZE * (0.002 if SIZE >= 256 else 0.05):
@@ -84,5 +86,5 @@ if problems:
     print('FAIL')
     [print(' ', p) for p in problems]
     raise SystemExit(1)
-print('PASS: 16 phases — fraction vs terminator within 4.5pp, quarters oriented,')
+print(f'PASS: {NPHASES} phases — fraction vs terminator within 4.5pp, quarters oriented,')
 print('      mirrored dark sides identical, corners transparent.')

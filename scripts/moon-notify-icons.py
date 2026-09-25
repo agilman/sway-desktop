@@ -5,7 +5,7 @@ Reuses the bar artwork's surface art (SURFACE/CRATERS) and terminator math by
 importing moon-icons.py, renders 256px via GTK librsvg (proven engine), and
 relies on dunst for scaling (max_icon_size=560, icon_position=top).
 Output names: phase-00.png .. phase-15.png; index 0 = new moon, 4 = first
-quarter, 8 = full, 12 = last quarter. North up; waxing lights the right.
+7 = first quarter, 14 = full, 21 = last quarter. North up; waxing lights the right.
 """
 import argparse
 import math
@@ -24,7 +24,7 @@ from gi.repository import Rsvg, Gdk
 import cairo
 
 
-N = 16
+N = 28
 SIZE = 260
 
 

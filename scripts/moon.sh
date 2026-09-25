@@ -36,8 +36,8 @@ fi
 
 case "$1" in
   notify)
-    # 16-step index for the popup artwork (finer than the 8 name buckets).
-    nphase=$(awk -v a="$age" -v s="$SYNODIC" 'BEGIN{printf "%02d", int((a/s)*16 + 0.5) % 16}')
+    # 28-step index for the popup artwork (one icon per day of the cycle).
+    nphase=$(awk -v a="$age" -v s="$SYNODIC" 'BEGIN{printf "%02d", int((a/s)*28 + 0.5) % 28}')
     icon="$HOME/.config/wayland-plus/moon-notify/phase-${nphase}.png"
     icon_args=()
     [ -f "$icon" ] && icon_args=(-i "$icon")
