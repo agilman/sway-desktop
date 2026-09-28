@@ -9,7 +9,8 @@
 
   "modules-left": ["sway/workspaces"],
   "modules-center": ["clock"],
-  "modules-right": ["custom/weather", "custom/moon", "custom/aqi", "custom/cpu", "custom/memory", "pulseaudio", "custom/battery", "custom/network", "tray"],
+  // custom/aqi removed for winter 2026-09-27 (no smoke season) - re-add before weather+cpu next summer
+  "modules-right": ["custom/weather", "custom/moon", "custom/cpu", "custom/memory", "pulseaudio", "custom/battery", "custom/network", "tray"],
 
   "sway/workspaces": {
     "disable-scroll": true,
