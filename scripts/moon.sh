@@ -24,10 +24,22 @@ names=("New Moon" "Waxing Crescent" "First Quarter" "Waxing Gibbous" "Full Moon"
 sunline=""
 if [ -n "${LAT:-}" ] && [ -n "${LON:-}" ] && [ "$LAT" != "0.0" ]; then
   SUN_CACHE=/tmp/wayland-plus-sun-${USER}.json
+  # cache is valid only if it parses and has both fields (empty/corrupted cache = stale)
+  if jq -e '.sunrise and .sunset' "$SUN_CACHE" >/dev/null 2>&1; then
+    svalid=1
+  else
+    svalid=0
+  fi
   smtime=$(stat -c %Y "$SUN_CACHE" 2>/dev/null || echo 0)
-  if (( now - smtime >= 21600 )); then
+  if [ "$svalid" = 0 ] || (( now - smtime >= 21600 )); then
+    tmp=$(mktemp)
     curl -fsS --max-time 5 "https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=sunrise,sunset&forecast_days=1&timezone=auto" \
-      | jq '{sunrise: .daily.sunrise[0], sunset: .daily.sunset[0]}' > "$SUN_CACHE" 2>/dev/null
+      | jq '{sunrise: .daily.sunrise[0], sunset: .daily.sunset[0]}' > "$tmp" 2>/dev/null
+    if jq -e '.sunrise and .sunset' "$tmp" >/dev/null 2>&1; then
+      mv "$tmp" "$SUN_CACHE"
+    else
+      rm -f "$tmp"
+    fi
   fi
   sunrise=$(jq -r '.sunrise | split("T")[1] // empty' "$SUN_CACHE" 2>/dev/null)
   sunset=$(jq -r '.sunset | split("T")[1] // empty' "$SUN_CACHE" 2>/dev/null)
